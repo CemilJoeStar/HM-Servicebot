@@ -1,0 +1,9 @@
+python-dotenv
+supabase
+langchain
+langchain-community
+langchain-google-genai
+langchain-text-splitters
+fastapi
+uvicorn
+gunicorn

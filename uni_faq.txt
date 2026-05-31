@@ -1,0 +1,28 @@
+# Universität Musterstadt - Fiktive FAQ für den Service-Bot
+
+Dokument: uni_faq.txt
+Stand: Sommersemester 2026
+
+## Rückmeldung
+Studierende müssen sich für das Sommersemester bis spätestens 15. Februar
+zurückmelden. Für das Wintersemester endet die Rückmeldefrist am 15. August.
+Die Rückmeldung ist nur vollständig, wenn der Semesterbeitrag fristgerecht auf
+dem Konto der Universität eingegangen ist.
+
+## Bachelorarbeit
+Die Bachelorarbeit kann angemeldet werden, wenn mindestens 120 ECTS-Punkte
+erreicht wurden. Das Anmeldeformular muss von der betreuenden Person
+unterschrieben und beim Prüfungsamt eingereicht werden. Die Bearbeitungszeit
+beträgt 12 Wochen ab dem bestätigten Startdatum.
+
+## Prüfungsabmeldung
+Eine Abmeldung von schriftlichen Prüfungen ist bis sieben Kalendertage vor dem
+Prüfungstermin ohne Angabe von Gründen möglich. Nach Ablauf dieser Frist ist
+eine Abmeldung nur mit anerkanntem Nachweis, zum Beispiel einem ärztlichen
+Attest, möglich.
+
+## Studierendenausweis
+Der Studierendenausweis kann nach erfolgreicher Rückmeldung an den
+Validierungsstationen auf dem Campus aktualisiert werden. Bei Verlust wird ein
+Ersatzausweis gegen eine Gebühr von 15 Euro im Studierendensekretariat
+ausgestellt.
