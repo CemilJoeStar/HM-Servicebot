@@ -41,7 +41,12 @@ https://hm-servicebot-api.onrender.com/api/health
 Vercel Projekt anlegen:
 
 - Framework: Vite
-- Root Directory: `outputs/rag_prototype/frontend`
+- Root Directory: leer lassen, wenn dieses Verzeichnis der GitHub-Repo-Root ist
+- Build Command: `cd frontend && npm run build`
+- Output Directory: `frontend/dist`
+
+Alternativ kannst du `frontend` als Root Directory setzen. Dann gelten:
+
 - Build Command: `npm run build`
 - Output Directory: `dist`
 

@@ -8,7 +8,9 @@ Start:
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +52,31 @@ class AskRequest(BaseModel):
 
 class IngestRequest(BaseModel):
     file_path: str | None = None
+
+
+class ChatCreateRequest(BaseModel):
+    student_id: str
+    title: str
+    meta: str = "gerade eben"
+    messages: list[dict]
+
+
+class ChatUpdateRequest(BaseModel):
+    title: str | None = None
+    meta: str = "gerade eben"
+    messages: list[dict]
+
+
+class ChatRenameRequest(BaseModel):
+    title: str
+
+
+class ChatPinRequest(BaseModel):
+    pinned: bool
+
+
+def utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def user_friendly_error(exc: Exception) -> str:
@@ -135,8 +162,11 @@ def list_student_chats(student_id: str) -> list[dict]:
         response = (
             build_supabase_client()
             .table("chat_sessions")
-            .select("id, title, meta, updated_at")
+            .select("id, title, meta, updated_at, pinned")
             .eq("student_id", student_id)
+            .is_("deleted_at", "null")
+            .is_("archived_at", "null")
+            .order("pinned", desc=True)
             .order("updated_at", desc=True)
             .execute()
         )
@@ -146,14 +176,40 @@ def list_student_chats(student_id: str) -> list[dict]:
     return response.data
 
 
+@app.post("/api/chats")
+def create_chat(request: ChatCreateRequest) -> dict:
+    chat_id = str(uuid4())
+    payload = {
+        "id": chat_id,
+        "student_id": request.student_id,
+        "title": request.title,
+        "meta": request.meta,
+        "messages": request.messages,
+        "updated_at": utc_timestamp(),
+    }
+
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .insert(payload)
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    return response.data[0]
+
+
 @app.get("/api/chats/{chat_id}")
 def read_chat(chat_id: str) -> dict:
     try:
         response = (
             build_supabase_client()
             .table("chat_sessions")
-            .select("id, title, meta, messages")
+            .select("id, title, meta, messages, pinned")
             .eq("id", chat_id)
+            .is_("deleted_at", "null")
             .limit(1)
             .execute()
         )
@@ -164,3 +220,120 @@ def read_chat(chat_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Saved chat not found.")
 
     return response.data[0]
+
+
+@app.patch("/api/chats/{chat_id}")
+def update_chat(chat_id: str, request: ChatUpdateRequest) -> dict:
+    payload = {
+        "meta": request.meta,
+        "messages": request.messages,
+        "updated_at": utc_timestamp(),
+    }
+    if request.title:
+        payload["title"] = request.title
+
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .update(payload)
+            .eq("id", chat_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Saved chat not found.")
+
+    return response.data[0]
+
+
+@app.patch("/api/chats/{chat_id}/rename")
+def rename_chat(chat_id: str, request: ChatRenameRequest) -> dict:
+    title = request.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Chat title must not be empty.")
+
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .update({"title": title, "updated_at": utc_timestamp()})
+            .eq("id", chat_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Saved chat not found.")
+
+    return response.data[0]
+
+
+@app.patch("/api/chats/{chat_id}/pin")
+def pin_chat(chat_id: str, request: ChatPinRequest) -> dict:
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .update({"pinned": request.pinned, "updated_at": utc_timestamp()})
+            .eq("id", chat_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Saved chat not found.")
+
+    return response.data[0]
+
+
+@app.post("/api/chats/{chat_id}/archive")
+def archive_chat(chat_id: str) -> dict[str, str]:
+    now = utc_timestamp()
+
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .update({"archived_at": now, "updated_at": now})
+            .eq("id", chat_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Saved chat not found.")
+
+    return {"status": "archived"}
+
+
+@app.delete("/api/chats/{chat_id}")
+def delete_chat(chat_id: str) -> dict[str, str]:
+    # Soft delete: hidden in the UI, retained for audit/demo recovery.
+    now = utc_timestamp()
+
+    try:
+        response = (
+            build_supabase_client()
+            .table("chat_sessions")
+            .update({"deleted_at": now, "updated_at": now})
+            .eq("id", chat_id)
+            .is_("deleted_at", "null")
+            .execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Saved chat not found.")
+
+    return {"status": "deleted"}

@@ -27,6 +27,7 @@ function App() {
   const [isAsking, setIsAsking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [studentProfile, setStudentProfile] = useState(null);
+  const [openMenuChatId, setOpenMenuChatId] = useState(null);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -57,15 +58,36 @@ function App() {
     loadInitialData();
   }, []);
 
+  async function loadSavedChats() {
+    const response = await fetch(`${API_BASE_URL}/api/students/${STUDENT_ID}/chats`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Chats konnten nicht geladen werden.");
+    }
+
+    setSavedChats(data);
+    return data;
+  }
+
   function setAppStatus(message, type = "idle") {
     setStatus(message);
     setStatusType(type);
+  }
+
+  function createChatTitle(userQuestion) {
+    const cleanedQuestion = userQuestion.replace(/[?.!]+$/g, "").trim();
+    if (cleanedQuestion.length <= 34) {
+      return cleanedQuestion;
+    }
+    return `${cleanedQuestion.slice(0, 31).trim()}...`;
   }
 
   function startNewChat() {
     setMessages(INITIAL_MESSAGES);
     setActiveChatId(null);
     setQuestion("");
+    setOpenMenuChatId(null);
     setAppStatus("Neuer Chat gestartet.", "success");
   }
 
@@ -81,9 +103,115 @@ function App() {
       setMessages(data.messages);
       setActiveChatId(data.id);
       setQuestion("");
+      setOpenMenuChatId(null);
       setAppStatus(`${data.title} geladen.`, "success");
     } catch (error) {
       setAppStatus(error.message, "error");
+    }
+  }
+
+  async function renameSavedChat(chat) {
+    const title = window.prompt("Neuer Chat-Titel", chat.title);
+    const cleanedTitle = title?.trim();
+    if (!cleanedTitle || cleanedTitle === chat.title) {
+      setOpenMenuChatId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${chat.id}/rename`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: cleanedTitle }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Chat konnte nicht umbenannt werden.");
+      }
+
+      await loadSavedChats();
+      setAppStatus("Chat umbenannt.", "success");
+    } catch (error) {
+      setAppStatus(error.message, "error");
+    } finally {
+      setOpenMenuChatId(null);
+    }
+  }
+
+  async function togglePinnedChat(chat) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${chat.id}/pin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: !chat.pinned }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Chat konnte nicht angeheftet werden.");
+      }
+
+      await loadSavedChats();
+      setAppStatus(chat.pinned ? "Chat gelöst." : "Chat angeheftet.", "success");
+    } catch (error) {
+      setAppStatus(error.message, "error");
+    } finally {
+      setOpenMenuChatId(null);
+    }
+  }
+
+  async function archiveSavedChat(chat) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${chat.id}/archive`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Chat konnte nicht archiviert werden.");
+      }
+
+      if (activeChatId === chat.id) {
+        startNewChat();
+      }
+      await loadSavedChats();
+      setAppStatus("Chat archiviert.", "success");
+    } catch (error) {
+      setAppStatus(error.message, "error");
+    } finally {
+      setOpenMenuChatId(null);
+    }
+  }
+
+  async function deleteSavedChat(chat) {
+    const shouldDelete = window.confirm(
+      "Diesen Chat aus der Liste entfernen? Er bleibt intern als gelöscht markiert."
+    );
+    if (!shouldDelete) {
+      setOpenMenuChatId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chats/${chat.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Chat konnte nicht gelöscht werden.");
+      }
+
+      if (activeChatId === chat.id) {
+        startNewChat();
+      }
+      await loadSavedChats();
+      setAppStatus("Chat gelöscht.", "success");
+    } catch (error) {
+      setAppStatus(error.message, "error");
+    } finally {
+      setOpenMenuChatId(null);
     }
   }
 
@@ -124,10 +252,9 @@ function App() {
     setIsAsking(true);
     setAppStatus("Suche passende Informationen...", "loading");
     setQuestion("");
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      { role: "user", text: userQuestion },
-    ]);
+    const userMessage = { role: "user", text: userQuestion };
+    const messagesWithQuestion = [...messages, userMessage];
+    setMessages(messagesWithQuestion);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/ask`, {
@@ -141,10 +268,47 @@ function App() {
         throw new Error(data.detail || "Antwort konnte nicht generiert werden.");
       }
 
-      setMessages((currentMessages) => [
-        ...currentMessages,
+      const messagesWithAnswer = [
+        ...messagesWithQuestion,
         { role: "assistant", text: data.answer },
-      ]);
+      ];
+      setMessages(messagesWithAnswer);
+
+      if (activeChatId) {
+        const updateResponse = await fetch(`${API_BASE_URL}/api/chats/${activeChatId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: messagesWithAnswer,
+            meta: "gerade eben",
+          }),
+        });
+        const updatedChat = await updateResponse.json();
+
+        if (!updateResponse.ok) {
+          throw new Error(updatedChat.detail || "Chat konnte nicht gespeichert werden.");
+        }
+      } else {
+        const createResponse = await fetch(`${API_BASE_URL}/api/chats`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: STUDENT_ID,
+            title: createChatTitle(userQuestion),
+            meta: "gerade eben",
+            messages: messagesWithAnswer,
+          }),
+        });
+        const createdChat = await createResponse.json();
+
+        if (!createResponse.ok) {
+          throw new Error(createdChat.detail || "Chat konnte nicht gespeichert werden.");
+        }
+
+        setActiveChatId(createdChat.id);
+      }
+
+      await loadSavedChats();
       setAppStatus("Bereit.", "idle");
     } catch (error) {
       setAppStatus(error.message, "error");
@@ -189,17 +353,58 @@ function App() {
 
         {savedChats.length > 0 && (
           <section className="savedChats">
-            <h2>Gespeicherte Chats</h2>
+            <div className="savedChatsHeader">
+              <h2>Aktuelle</h2>
+              <span aria-hidden="true">⌄</span>
+            </div>
             {savedChats.map((chat) => (
-              <button
-                className={activeChatId === chat.id ? "savedChat active" : "savedChat"}
+              <div
+                className={activeChatId === chat.id ? "savedChatItem active" : "savedChatItem"}
                 key={chat.id}
-                type="button"
-                onClick={() => openSavedChat(chat)}
               >
-                <span>{chat.title}</span>
-                <small>{chat.meta}</small>
-              </button>
+                <button
+                  className="savedChatMain"
+                  type="button"
+                  onClick={() => openSavedChat(chat)}
+                >
+                  <span className="savedChatTitle">
+                    {chat.pinned && <span className="pinMark" aria-label="Angeheftet">●</span>}
+                    {chat.title}
+                  </span>
+                  <small className="savedChatMeta">{chat.meta}</small>
+                </button>
+                <button
+                  aria-label={`Optionen für ${chat.title}`}
+                  className="chatMenuButton"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenMenuChatId(openMenuChatId === chat.id ? null : chat.id);
+                  }}
+                >
+                  ⋯
+                </button>
+                {openMenuChatId === chat.id && (
+                  <div className="chatMenu" role="menu">
+                    <button type="button" onClick={() => togglePinnedChat(chat)}>
+                      {chat.pinned ? "Loslösen" : "Chat anheften"}
+                    </button>
+                    <button type="button" onClick={() => renameSavedChat(chat)}>
+                      Umbenennen
+                    </button>
+                    <button type="button" onClick={() => archiveSavedChat(chat)}>
+                      Archivieren
+                    </button>
+                    <button
+                      className="danger"
+                      type="button"
+                      onClick={() => deleteSavedChat(chat)}
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </section>
         )}
