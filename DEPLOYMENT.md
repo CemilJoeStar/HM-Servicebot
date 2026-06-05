@@ -93,3 +93,7 @@ npm run dev
 - Die `.env` Datei nicht committen.
 - Der Supabase Service Role Key gehoert nur ins Backend, niemals ins Frontend.
 - Render Free Services koennen nach Inaktivitaet schlafen. Der erste Request kann dann etwas dauern.
+- Chatverlaeufe werden im Prototyp optional gespeichert. Sichtbare Historie ist
+  auf eine begrenzte Anzahl begrenzt; alte Chats werden nach 30 Tagen
+  anonymisiert. Beim Loeschen bleibt nur ein anonymisierter Audit-Datensatz ohne
+  Nachrichteninhalt erhalten.

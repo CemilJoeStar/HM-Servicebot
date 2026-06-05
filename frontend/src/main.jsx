@@ -28,6 +28,7 @@ function App() {
   const [isIngesting, setIsIngesting] = useState(false);
   const [studentProfile, setStudentProfile] = useState(null);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
+  const [shouldSaveChat, setShouldSaveChat] = useState(true);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -102,6 +103,7 @@ function App() {
 
       setMessages(data.messages);
       setActiveChatId(data.id);
+      setShouldSaveChat(true);
       setQuestion("");
       setOpenMenuChatId(null);
       setAppStatus(`${data.title} geladen.`, "success");
@@ -186,7 +188,7 @@ function App() {
 
   async function deleteSavedChat(chat) {
     const shouldDelete = window.confirm(
-      "Diesen Chat aus der Liste entfernen? Er bleibt intern als gelöscht markiert."
+      "Diesen Chat entfernen? Der Verlauf wird anonymisiert und aus der Liste entfernt."
     );
     if (!shouldDelete) {
       setOpenMenuChatId(null);
@@ -213,6 +215,19 @@ function App() {
     } finally {
       setOpenMenuChatId(null);
     }
+  }
+
+  function handleSavePreferenceChange(event) {
+    const isEnabled = event.target.checked;
+    setShouldSaveChat(isEnabled);
+
+    if (!isEnabled) {
+      setActiveChatId(null);
+      setAppStatus("Chat-Speicherung deaktiviert.", "success");
+      return;
+    }
+
+    setAppStatus("Chat-Speicherung aktiviert.", "success");
   }
 
   async function ingestFaq() {
@@ -274,7 +289,9 @@ function App() {
       ];
       setMessages(messagesWithAnswer);
 
-      if (activeChatId) {
+      if (!shouldSaveChat) {
+        setActiveChatId(null);
+      } else if (activeChatId) {
         const updateResponse = await fetch(`${API_BASE_URL}/api/chats/${activeChatId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -308,7 +325,9 @@ function App() {
         setActiveChatId(createdChat.id);
       }
 
-      await loadSavedChats();
+      if (shouldSaveChat) {
+        await loadSavedChats();
+      }
       setAppStatus("Bereit.", "idle");
     } catch (error) {
       setAppStatus(error.message, "error");
@@ -450,6 +469,18 @@ function App() {
         </div>
 
         {statusType !== "idle" && <div className={`statusBox ${statusType}`}>{status}</div>}
+
+        <label className="savePreference">
+          <input
+            checked={shouldSaveChat}
+            type="checkbox"
+            onChange={handleSavePreferenceChange}
+          />
+          <span>
+            <strong>Chat speichern</strong>
+            <small>30 Tage sichtbar, Löschen anonymisiert den Verlauf</small>
+          </span>
+        </label>
 
         <form className="composer" onSubmit={askQuestion}>
           <textarea

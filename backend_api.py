@@ -8,7 +8,7 @@ Start:
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -27,6 +27,8 @@ from rag_prototype import (
 
 
 app = FastAPI(title="Uni Service-Bot API")
+CHAT_RETENTION_DAYS = int(os.getenv("CHAT_RETENTION_DAYS", "30"))
+MAX_VISIBLE_CHATS = int(os.getenv("MAX_VISIBLE_CHATS", "20"))
 
 allowed_origins = [
     origin.strip()
@@ -78,6 +80,32 @@ class ChatPinRequest(BaseModel):
 
 def utc_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def anonymized_chat_payload(now: str) -> dict:
+    return {
+        "title": "Gelöschter Chat",
+        "meta": "anonymisiert",
+        "messages": [],
+        "pinned": False,
+        "deleted_at": now,
+        "updated_at": now,
+    }
+
+
+def cleanup_expired_chats(student_id: str) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=CHAT_RETENTION_DAYS)
+    now = utc_timestamp()
+
+    (
+        build_supabase_client()
+        .table("chat_sessions")
+        .update(anonymized_chat_payload(now))
+        .eq("student_id", student_id)
+        .is_("deleted_at", "null")
+        .lt("updated_at", cutoff.isoformat())
+        .execute()
+    )
 
 
 def user_friendly_error(exc: Exception) -> str:
@@ -160,6 +188,7 @@ def read_student(student_id: str) -> dict:
 @app.get("/api/students/{student_id}/chats")
 def list_student_chats(student_id: str) -> list[dict]:
     try:
+        cleanup_expired_chats(student_id)
         response = (
             build_supabase_client()
             .table("chat_sessions")
@@ -169,6 +198,7 @@ def list_student_chats(student_id: str) -> list[dict]:
             .is_("archived_at", "null")
             .order("pinned", desc=True)
             .order("updated_at", desc=True)
+            .limit(MAX_VISIBLE_CHATS)
             .execute()
         )
     except Exception as exc:
@@ -179,17 +209,22 @@ def list_student_chats(student_id: str) -> list[dict]:
 
 @app.post("/api/chats")
 def create_chat(request: ChatCreateRequest) -> dict:
+    title = request.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Chat title must not be empty.")
+
     chat_id = str(uuid4())
     payload = {
         "id": chat_id,
         "student_id": request.student_id,
-        "title": request.title,
+        "title": title[:80],
         "meta": request.meta,
         "messages": request.messages,
         "updated_at": utc_timestamp(),
     }
 
     try:
+        cleanup_expired_chats(request.student_id)
         response = (
             build_supabase_client()
             .table("chat_sessions")
@@ -256,6 +291,7 @@ def rename_chat(chat_id: str, request: ChatRenameRequest) -> dict:
     title = request.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Chat title must not be empty.")
+    title = title[:80]
 
     try:
         response = (
@@ -319,14 +355,14 @@ def archive_chat(chat_id: str) -> dict[str, str]:
 
 @app.delete("/api/chats/{chat_id}")
 def delete_chat(chat_id: str) -> dict[str, str]:
-    # Soft delete: hidden in the UI, retained for audit/demo recovery.
+    # Keep the row for auditability, but remove user-written content.
     now = utc_timestamp()
 
     try:
         response = (
             build_supabase_client()
             .table("chat_sessions")
-            .update({"deleted_at": now, "updated_at": now})
+            .update(anonymized_chat_payload(now))
             .eq("id", chat_id)
             .is_("deleted_at", "null")
             .execute()
