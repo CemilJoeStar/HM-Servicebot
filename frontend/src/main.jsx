@@ -419,10 +419,9 @@ function App() {
                 <p>{message.text}</p>
                 {message.role === "assistant" && message.sources?.length > 0 && (
                   <div className="sourceList" aria-label="Verwendete Quellen">
-                    <span>Quelle</span>
-                    {message.sources.map((source) => (
-                      <small key={source}>{source}</small>
-                    ))}
+                    <span className="sourceDot" aria-hidden="true" />
+                    <strong>Quelle:</strong>
+                    <small>{message.sources[0]}</small>
                   </div>
                 )}
               </div>

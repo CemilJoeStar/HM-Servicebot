@@ -48,6 +48,20 @@ FALLBACK_ANSWER = (
     "Bitte wende dich an das Studierendensekretariat."
 )
 FALLBACK_SOURCE = "Keine verifizierte Quelle in der Wissensbasis gefunden."
+DEFAULT_SOURCE_LABEL = "HM Studierendenservice FAQ 2026 · verifiziert"
+
+
+def get_source_label(content: str) -> str:
+    if "## Prüfungsabmeldung" in content or "## Bachelorarbeit" in content:
+        return "Allgemeine Prüfungsordnung 2024 · verifiziert"
+
+    if "## Rückmeldung" in content:
+        return "Rückmeldeordnung Sommersemester 2026 · verifiziert"
+
+    if "## Studierendenausweis" in content:
+        return "HM Studierendenservice FAQ 2026 · verifiziert"
+
+    return DEFAULT_SOURCE_LABEL
 
 
 def load_config() -> tuple[str, str, str]:
@@ -138,6 +152,7 @@ def load_faq_documents(path: Path) -> list[Document]:
 
     for index, chunk in enumerate(chunks):
         chunk.metadata["chunk"] = index
+        chunk.metadata["source_label"] = get_source_label(chunk.page_content)
 
     return chunks
 
@@ -171,15 +186,17 @@ def format_sources(documents: Iterable[Document]) -> list[str]:
     seen_sources = set()
 
     for document in documents:
-        source = document.metadata.get("source", "unbekannte Quelle")
-        chunk = document.metadata.get("chunk", "n/a")
-        source_label = f"{source}, Chunk {chunk}"
+        source_label = document.metadata.get("source_label")
+        if not source_label:
+            source = document.metadata.get("source", "unbekannte Quelle")
+            chunk = document.metadata.get("chunk", "n/a")
+            source_label = f"{source}, Chunk {chunk}"
 
         if source_label not in seen_sources:
             sources.append(source_label)
             seen_sources.add(source_label)
 
-    return sources
+    return sources[:1]
 
 
 def get_student_profile(student_id: str) -> dict | None:

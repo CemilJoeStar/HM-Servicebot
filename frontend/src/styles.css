@@ -349,29 +349,39 @@ h2 {
 }
 
 .sourceList {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   gap: 6px;
   align-items: center;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 2px solid #24c35a;
+  border-radius: 999px;
+  color: #184f32;
+  background: #eaf8ef;
 }
 
-.sourceList span {
-  color: var(--hm-red-dark);
+.sourceDot {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #24c35a;
+}
+
+.sourceList strong {
+  flex: 0 0 auto;
   font-size: 0.72rem;
   font-weight: 900;
-  text-transform: uppercase;
 }
 
 .sourceList small {
-  padding: 3px 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #ffffff;
-  font-size: 0.74rem;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .suggestions {
