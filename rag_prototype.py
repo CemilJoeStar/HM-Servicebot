@@ -47,6 +47,7 @@ FALLBACK_ANSWER = (
     "Dazu liegen mir leider keine verifizierten Informationen vor. "
     "Bitte wende dich an das Studierendensekretariat."
 )
+FALLBACK_SOURCE = "Keine verifizierte Quelle in der Wissensbasis gefunden."
 
 
 def load_config() -> tuple[str, str, str]:
@@ -165,6 +166,22 @@ def format_context(documents: Iterable[Document]) -> str:
     return "\n\n".join(blocks)
 
 
+def format_sources(documents: Iterable[Document]) -> list[str]:
+    sources = []
+    seen_sources = set()
+
+    for document in documents:
+        source = document.metadata.get("source", "unbekannte Quelle")
+        chunk = document.metadata.get("chunk", "n/a")
+        source_label = f"{source}, Chunk {chunk}"
+
+        if source_label not in seen_sources:
+            sources.append(source_label)
+            seen_sources.add(source_label)
+
+    return sources
+
+
 def get_student_profile(student_id: str) -> dict | None:
     response = (
         build_supabase_client()
@@ -264,7 +281,8 @@ Wenn die Antwort nicht eindeutig im Kontext enthalten ist, antworte exakt:
 Wenn für eine personalisierte Antwort ein Profilfeld fehlt, sage knapp, welche
 Profilinformation fehlt.
 
-Gib keine Quellen, Chunk-Nummern oder internen Kontextdetails in der Antwort aus.
+Gib keine Quellen, Chunk-Nummern oder internen Kontextdetails im Antworttext aus.
+Die Quellen werden separat von der Anwendung angezeigt.
 
 Kontext:
 {context}
@@ -284,7 +302,8 @@ def ask(
     student_id: str = "demo-student-001",
     print_answer: bool = True,
 ) -> str:
-    context = format_context(retrieve_documents(question))
+    retrieved_documents = retrieve_documents(question)
+    context = format_context(retrieved_documents)
     student_profile = format_student_profile(get_student_profile(student_id))
     chain = build_prompt() | build_llm()
     response = chain.invoke(
@@ -297,6 +316,30 @@ def ask(
     if print_answer:
         print(response.content)
     return response.content
+
+
+def ask_with_sources(
+    question: str,
+    student_id: str = "demo-student-001",
+) -> dict[str, object]:
+    retrieved_documents = retrieve_documents(question)
+    context = format_context(retrieved_documents)
+    student_profile = format_student_profile(get_student_profile(student_id))
+    chain = build_prompt() | build_llm()
+    response = chain.invoke(
+        {
+            "question": question,
+            "context": context,
+            "student_profile": student_profile,
+        }
+    )
+    answer = response.content
+    sources = [] if answer.strip() == FALLBACK_ANSWER else format_sources(retrieved_documents)
+
+    return {
+        "answer": answer,
+        "sources": sources or [FALLBACK_SOURCE],
+    }
 
 
 def parse_args() -> argparse.Namespace:

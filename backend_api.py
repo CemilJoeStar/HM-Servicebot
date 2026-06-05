@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from rag_prototype import (
     SCRIPT_DIR,
     ask,
+    ask_with_sources,
     build_supabase_client,
     get_student_profile,
     ingest,
@@ -130,17 +131,17 @@ def ingest_document(request: IngestRequest) -> dict[str, str]:
 
 
 @app.post("/api/ask")
-def ask_question(request: AskRequest) -> dict[str, str]:
+def ask_question(request: AskRequest) -> dict[str, object]:
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question must not be empty.")
 
     try:
-        answer = ask(question, student_id=request.student_id, print_answer=False)
+        result = ask_with_sources(question, student_id=request.student_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
 
-    return {"answer": answer}
+    return result
 
 
 @app.get("/api/students/{student_id}")

@@ -270,7 +270,7 @@ function App() {
 
       const messagesWithAnswer = [
         ...messagesWithQuestion,
-        { role: "assistant", text: data.answer },
+        { role: "assistant", text: data.answer, sources: data.sources || [] },
       ];
       setMessages(messagesWithAnswer);
 
@@ -415,7 +415,17 @@ function App() {
           {messages.map((message, index) => (
             <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
               <div className="avatar">{message.role === "assistant" ? "HM" : "du"}</div>
-              <p>{message.text}</p>
+              <div className="messageBubble">
+                <p>{message.text}</p>
+                {message.role === "assistant" && message.sources?.length > 0 && (
+                  <div className="sourceList" aria-label="Verwendete Quellen">
+                    <span>Quelle</span>
+                    {message.sources.map((source) => (
+                      <small key={source}>{source}</small>
+                    ))}
+                  </div>
+                )}
+              </div>
             </article>
           ))}
 

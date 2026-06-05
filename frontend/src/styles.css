@@ -312,7 +312,7 @@ h2 {
   background: #161616;
 }
 
-.message.user p {
+.message.user .messageBubble {
   grid-column: 1;
   grid-row: 1;
   justify-self: end;
@@ -333,16 +333,45 @@ h2 {
   font-weight: 900;
 }
 
-.message p {
+.messageBubble {
   width: fit-content;
   max-width: min(760px, 92%);
-  margin: 0;
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--soft-gray);
+}
+
+.messageBubble p {
+  margin: 0;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.sourceList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.sourceList span {
+  color: var(--hm-red-dark);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sourceList small {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.74rem;
 }
 
 .suggestions {
