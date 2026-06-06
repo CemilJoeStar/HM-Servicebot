@@ -6,8 +6,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 const STUDENT_ID = "demo-student-001";
 const EXAMPLE_QUESTIONS = [
   "Bis wann muss ich mich für das Sommersemester rückmelden?",
-  "Ab wie vielen ECTS kann ich die Bachelorarbeit anmelden?",
-  "Wie lange vor einer Prüfung kann ich mich abmelden?",
+  "Kann ich meine Bachelorarbeit anmelden?",
+  "Welche Module fehlen mir noch?",
+  "Welcher Schwerpunkt passt zu mir?",
 ];
 const INITIAL_MESSAGES = [
   {
@@ -29,6 +30,15 @@ function App() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [shouldSaveChat, setShouldSaveChat] = useState(true);
+
+  const profileNotes = studentProfile?.notes || {};
+  const completedModules = Array.isArray(profileNotes.completed_modules)
+    ? profileNotes.completed_modules
+    : [];
+  const openModules = Array.isArray(profileNotes.open_modules)
+    ? profileNotes.open_modules
+    : [];
+  const interests = Array.isArray(profileNotes.interests) ? profileNotes.interests : [];
 
   useEffect(() => {
     async function loadInitialData() {
@@ -438,9 +448,13 @@ function App() {
                 <p>{message.text}</p>
                 {message.role === "assistant" && message.sources?.length > 0 && (
                   <div className="sourceList" aria-label="Verwendete Quellen">
-                    <span className="sourceDot" aria-hidden="true" />
-                    <strong>Quelle:</strong>
-                    <small>{message.sources[0]}</small>
+                    {message.sources.map((source) => (
+                      <span className="sourcePill" key={source}>
+                        <span className="sourceDot" aria-hidden="true" />
+                        <strong>Quelle:</strong>
+                        <small>{source}</small>
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -546,6 +560,41 @@ function App() {
             <p className="muted">Profil wird geladen...</p>
           )}
         </section>
+
+        {studentProfile && (
+          <section className="infoCard">
+            <h2>Studienverlauf</h2>
+            <div className="moduleBlock">
+              <h3>Offene Module</h3>
+              {openModules.length > 0 ? (
+                <ul>
+                  {openModules.map((module) => (
+                    <li key={module.name}>
+                      <span>{module.name}</span>
+                      <small>{module.ects} ECTS</small>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Keine offenen Module hinterlegt.</p>
+              )}
+            </div>
+            <div className="moduleBlock compact">
+              <h3>Interessen</h3>
+              <div className="tagList">
+                {interests.map((interest) => (
+                  <span key={interest}>{interest}</span>
+                ))}
+              </div>
+            </div>
+            <div className="moduleBlock compact">
+              <h3>Bestanden</h3>
+              <p className="muted">
+                {completedModules.length} Demo-Module hinterlegt
+              </p>
+            </div>
+          </section>
+        )}
 
         <section className="infoCard">
           <h2>Wissensbasis</h2>

@@ -349,11 +349,19 @@ h2 {
 }
 
 .sourceList {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
   max-width: 100%;
   margin-top: 12px;
+}
+
+.sourcePill {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
   padding: 8px 12px;
   border: 2px solid #24c35a;
   border-radius: 999px;
@@ -369,13 +377,13 @@ h2 {
   background: #24c35a;
 }
 
-.sourceList strong {
+.sourcePill strong {
   flex: 0 0 auto;
   font-size: 0.72rem;
   font-weight: 900;
 }
 
-.sourceList small {
+.sourcePill small {
   min-width: 0;
   overflow: hidden;
   font-size: 0.78rem;
@@ -571,6 +579,74 @@ h2 {
 
 .profileList dd {
   margin: 0;
+  font-weight: 800;
+}
+
+.moduleBlock {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.moduleBlock:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.moduleBlock + .moduleBlock {
+  margin-top: 12px;
+}
+
+.moduleBlock h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.moduleBlock ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moduleBlock li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.moduleBlock li span {
+  font-weight: 750;
+}
+
+.moduleBlock li small {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tagList span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: var(--hm-red-dark);
+  background: var(--soft-red);
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
