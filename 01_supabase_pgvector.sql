@@ -106,7 +106,7 @@ values (
             jsonb_build_object('name', 'IT-Sicherheit', 'ects', 5, 'category', 'Pflichtmodul'),
             jsonb_build_object('name', 'Projektseminar', 'ects', 5, 'category', 'Pflichtmodul')
         ),
-        'advising_note', 'Demo-Daten für erste individuelle Studienberatung; keine rechtsverbindliche Auskunft.'
+        'advising_note', 'Profil- und Studienverlaufsdaten für erste individuelle Studienberatung; keine rechtsverbindliche Auskunft.'
     )
 )
 on conflict (student_id) do update

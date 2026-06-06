@@ -602,7 +602,7 @@ function App() {
             <div className="moduleBlock compact">
               <h3>Bestanden</h3>
               <p className="muted">
-                {completedModules.length} Demo-Module hinterlegt
+                {completedModules.length} Module hinterlegt
               </p>
             </div>
           </details>

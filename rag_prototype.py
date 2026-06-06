@@ -49,7 +49,7 @@ FALLBACK_ANSWER = (
 )
 FALLBACK_SOURCE = "Keine verifizierte Quelle in der Wissensbasis gefunden."
 DEFAULT_SOURCE_LABEL = "HM Studierendenservice FAQ 2026 · verifiziert"
-PROFILE_SOURCE_LABEL = "Studierendenprofil · Demo-Datensatz"
+PROFILE_SOURCE_LABEL = "Studierendenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
 
@@ -246,10 +246,10 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
 
     if "semesterbeitrag" in normalized or "bezahlt" in normalized:
         if profile.get("semester_fee_paid"):
-            answer = "Dein Semesterbeitrag ist im Demo-Profil als bezahlt markiert."
+            answer = "Dein Semesterbeitrag ist im Studierendenprofil als bezahlt markiert."
         else:
             answer = (
-                "Dein Semesterbeitrag ist im Demo-Profil noch nicht als bezahlt markiert. "
+                "Dein Semesterbeitrag ist im Studierendenprofil noch nicht als bezahlt markiert. "
                 "Die Rückmeldung ist erst vollständig, wenn der Semesterbeitrag fristgerecht "
                 "eingegangen ist."
             )
@@ -273,7 +273,7 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
         if ects_earned is None:
             answer = "Für diese Auskunft fehlt im Profil die aktuelle ECTS-Anzahl."
         else:
-            answer = f"Du hast laut Demo-Profil aktuell {ects_earned} ECTS."
+            answer = f"Du hast laut Studierendenprofil aktuell {ects_earned} ECTS."
         return {
             "answer": answer,
             "sources": build_source_list(PROFILE_SOURCE_LABEL),
@@ -282,10 +282,10 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
 
     if "rueckgemeldet" in normalized or "rueckmeldung" in normalized and "ich" in normalized:
         if profile.get("semester_fee_paid"):
-            answer = "Du bist im Demo-Profil für die Rückmeldung nicht blockiert, weil der Semesterbeitrag als bezahlt markiert ist."
+            answer = "Du bist im Studierendenprofil für die Rückmeldung nicht blockiert, weil der Semesterbeitrag als bezahlt markiert ist."
         else:
             answer = (
-                "Du bist aktuell noch nicht vollständig zurückgemeldet. Im Demo-Profil ist "
+                "Du bist aktuell noch nicht vollständig zurückgemeldet. Im Studierendenprofil ist "
                 "der Semesterbeitrag als nicht bezahlt markiert; die Rückmeldung ist erst "
                 "vollständig, wenn der Beitrag fristgerecht eingegangen ist."
             )
@@ -313,7 +313,7 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
             missing_ects = THESIS_REQUIRED_ECTS - ects_earned
             module_hint = ""
             if open_modules:
-                module_hint = f" Im Demo-Profil sind außerdem noch offene Module hinterlegt: {format_module_names(open_modules)}."
+                module_hint = f" Im Studienverlauf sind außerdem noch offene Module hinterlegt: {format_module_names(open_modules)}."
             answer = (
                 f"Noch nicht. Du hast aktuell {ects_earned} ECTS; für die Anmeldung der "
                 f"Bachelorarbeit werden mindestens {THESIS_REQUIRED_ECTS} ECTS benötigt. "
@@ -330,9 +330,9 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
 
     if "fehl" in normalized and "modul" in normalized or "offene module" in normalized or "pflichtmodule" in normalized:
         if open_modules:
-            answer = f"In deinem Demo-Studienverlauf sind noch diese offenen Module hinterlegt: {format_module_names(open_modules)}."
+            answer = f"In deinem Studienverlauf sind noch diese offenen Module hinterlegt: {format_module_names(open_modules)}."
         else:
-            answer = "In deinem Demo-Studienverlauf sind aktuell keine offenen Module hinterlegt."
+            answer = "In deinem Studienverlauf sind aktuell keine offenen Module hinterlegt."
         return {
             "answer": answer,
             "sources": build_source_list(PROFILE_SOURCE_LABEL),
@@ -343,7 +343,7 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
         completed = format_module_names(completed_modules)
         interest_text = ", ".join(interests) if interests else "keine Interessen hinterlegt"
         answer = (
-            "Für eine erste Orientierung passt ein daten- oder softwareorientierter Schwerpunkt gut zu deinem Demo-Profil. "
+            "Für eine erste Orientierung passt ein daten- oder softwareorientierter Schwerpunkt gut zu deinem Studierendenprofil. "
             f"Grundlage sind deine hinterlegten Interessen ({interest_text}) und bestandene Module wie {completed}."
         )
         return {
