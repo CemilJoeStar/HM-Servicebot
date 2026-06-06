@@ -533,8 +533,11 @@ function App() {
       </section>
 
       <aside className="rightRail">
-        <section className="infoCard">
-          <h2>Studentenprofil</h2>
+        <details className="infoCard collapsibleCard" open>
+          <summary>
+            <h2>Studentenprofil</h2>
+            <span aria-hidden="true">⌄</span>
+          </summary>
           {studentProfile ? (
             <dl className="profileList">
               <div>
@@ -565,11 +568,14 @@ function App() {
           ) : (
             <p className="muted">Profil wird geladen...</p>
           )}
-        </section>
+        </details>
 
         {studentProfile && (
-          <section className="infoCard">
-            <h2>Studienverlauf</h2>
+          <details className="infoCard collapsibleCard" open>
+            <summary>
+              <h2>Studienverlauf</h2>
+              <span aria-hidden="true">⌄</span>
+            </summary>
             <div className="moduleBlock">
               <h3>Offene Module</h3>
               {openModules.length > 0 ? (
@@ -599,11 +605,14 @@ function App() {
                 {completedModules.length} Demo-Module hinterlegt
               </p>
             </div>
-          </section>
+          </details>
         )}
 
-        <section className="infoCard">
-          <h2>Wissensbasis</h2>
+        <details className="infoCard collapsibleCard" open>
+          <summary>
+            <h2>Wissensbasis</h2>
+            <span aria-hidden="true">⌄</span>
+          </summary>
           <p className="muted">
             Offizielle Regeln kommen aus den FAQ-Chunks. Profildaten werden nur
             zur Personalisierung genutzt.
@@ -611,7 +620,7 @@ function App() {
           <span className={hasIndexed ? "indexPill ready" : "indexPill"}>
             {hasIndexed ? "Index bereit" : "Nicht indexiert"}
           </span>
-        </section>
+        </details>
       </aside>
     </main>
   );

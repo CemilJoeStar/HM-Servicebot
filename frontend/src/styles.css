@@ -547,6 +547,44 @@ h2 {
   padding: 16px;
 }
 
+.collapsibleCard summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -4px -4px 12px;
+  padding: 4px;
+  border-radius: 6px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.collapsibleCard summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsibleCard summary:hover {
+  background: var(--soft-gray);
+}
+
+.collapsibleCard summary h2 {
+  margin: 0;
+}
+
+.collapsibleCard summary span {
+  color: var(--muted);
+  font-weight: 900;
+  transition: transform 140ms ease;
+}
+
+.collapsibleCard:not([open]) summary {
+  margin-bottom: -4px;
+}
+
+.collapsibleCard:not([open]) summary span {
+  transform: rotate(-90deg);
+}
+
 .muted {
   color: var(--muted);
   line-height: 1.45;

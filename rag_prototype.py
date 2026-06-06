@@ -262,6 +262,24 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
             "intent": "profile",
         }
 
+    if "ects" in normalized and (
+        "wie viele" in normalized
+        or "wie viel" in normalized
+        or "derzeit" in normalized
+        or "aktuell" in normalized
+        or "habe ich" in normalized
+    ):
+        ects_earned = profile.get("ects_earned")
+        if ects_earned is None:
+            answer = "Für diese Auskunft fehlt im Profil die aktuelle ECTS-Anzahl."
+        else:
+            answer = f"Du hast laut Demo-Profil aktuell {ects_earned} ECTS."
+        return {
+            "answer": answer,
+            "sources": build_source_list(PROFILE_SOURCE_LABEL),
+            "intent": "profile",
+        }
+
     if "rueckgemeldet" in normalized or "rueckmeldung" in normalized and "ich" in normalized:
         if profile.get("semester_fee_paid"):
             answer = "Du bist im Demo-Profil für die Rückmeldung nicht blockiert, weil der Semesterbeitrag als bezahlt markiert ist."
