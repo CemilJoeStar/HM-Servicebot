@@ -501,6 +501,12 @@ function App() {
             aria-label="Studentische Frage"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
             placeholder="Frage zum Studium stellen..."
             rows={1}
           />
