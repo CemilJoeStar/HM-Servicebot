@@ -83,7 +83,7 @@ insert into public.student_profiles (
 )
 values (
     'demo-student-001',
-    'Demo Student',
+    'Cemil Yilmaz',
     'Wirtschaftsinformatik B.Sc.',
     5,
     118,
