@@ -611,10 +611,24 @@ def score_professor_for_profile(
 
     focus_topics = professor.get("focus_topics") or []
     normalized_focus_topics = {normalize_text(topic) for topic in focus_topics}
+    focus_topics_by_signal = {
+        normalize_text(topic): topic
+        for topic in focus_topics
+    }
     normalized_query = normalize_text(query)
-    interest_signals = {normalize_text(interest) for interest in get_interests(profile)}
+    interests = get_interests(profile)
+    interest_signals = {normalize_text(interest) for interest in interests}
+    interests_by_signal = {
+        normalize_text(interest): interest
+        for interest in interests
+    }
     completed_signals = get_normalized_completed_module_names(profile)
     open_signals = get_normalized_open_module_names(profile)
+    module_names_by_signal = {
+        normalize_text(module.get("name") or ""): module.get("name")
+        for module in [*get_completed_modules(profile), *get_open_modules(profile)]
+        if module.get("name")
+    }
 
     capacity_status = professor.get("capacity_status") or "unavailable"
     available_slots = int(professor.get("available_slots") or 0)
@@ -634,17 +648,25 @@ def score_professor_for_profile(
     interest_matches = sorted(normalized_focus_topics & interest_signals)
     if interest_matches:
         score += 4 * len(interest_matches)
+        readable_interests = ", ".join(
+            interests_by_signal.get(match, focus_topics_by_signal.get(match, match))
+            for match in interest_matches[:3]
+        )
         reasons.append(
             "passt zu deinen Interessen "
-            f"({', '.join(interest_matches[:3])})"
+            f"({readable_interests})"
         )
 
     module_matches = sorted(normalized_focus_topics & (completed_signals | open_signals))
     if module_matches:
         score += 2 * len(module_matches)
+        readable_modules = ", ".join(
+            module_names_by_signal.get(match, focus_topics_by_signal.get(match, match))
+            for match in module_matches[:3]
+        )
         reasons.append(
             "knüpft an deinen Studienverlauf an "
-            f"({', '.join(module_matches[:3])})"
+            f"({readable_modules})"
         )
 
     if capacity_status == "available":
