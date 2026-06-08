@@ -79,6 +79,16 @@ class CourseRecommendation:
     reasons: list[str]
 
 
+@dataclass(frozen=True)
+class ProfessorRecommendation:
+    display_name: str
+    focus_topics: list[str]
+    capacity_status: str
+    available_slots: int
+    score: int
+    reasons: list[str]
+
+
 MODULE_CATALOG = [
     {
         "name": "Data Mining",
@@ -301,6 +311,17 @@ def route_intent(question: str) -> IntentRoute:
 
     if contains_any(
         normalized,
+        ["professor", "professorin", "prof", "betreu", "dozent", "dozentin"],
+    ):
+        return IntentRoute(
+            intent="professor_matching",
+            label="Professorenmatching",
+            data_sources=["Studierendenprofil", "Professorendatenbank"],
+            reason="Die Frage verlangt ein Matching zwischen Interessen, Studienverlauf und Betreuungskapazitäten.",
+        )
+
+    if contains_any(
+        normalized,
         [
             "schwerpunkt",
             "passt zu mir",
@@ -512,6 +533,169 @@ def format_course_recommendations(recommendations: list[CourseRecommendation]) -
         )
         for index, item in enumerate(recommendations, start=1)
     )
+
+
+def get_professors() -> list[dict]:
+    response = (
+        build_supabase_client()
+        .table("professors")
+        .select("*")
+        .order("available_slots", desc=True)
+        .execute()
+    )
+    return response.data or []
+
+
+def get_knowledge_documents() -> list[dict]:
+    response = (
+        build_supabase_client()
+        .table("knowledge_documents")
+        .select("*")
+        .order("last_indexed_at", desc=True)
+        .execute()
+    )
+    return response.data or []
+
+
+def score_professor_for_profile(
+    professor: dict,
+    profile: dict | None,
+    query: str = "",
+) -> ProfessorRecommendation | None:
+    if not profile:
+        return None
+
+    focus_topics = professor.get("focus_topics") or []
+    normalized_focus_topics = {normalize_text(topic) for topic in focus_topics}
+    normalized_query = normalize_text(query)
+    interest_signals = {normalize_text(interest) for interest in get_interests(profile)}
+    completed_signals = get_normalized_completed_module_names(profile)
+    open_signals = get_normalized_open_module_names(profile)
+
+    capacity_status = professor.get("capacity_status") or "unavailable"
+    available_slots = int(professor.get("available_slots") or 0)
+
+    score = 0
+    reasons = []
+
+    query_matches = [
+        topic
+        for topic in focus_topics
+        if normalize_text(topic) in normalized_query
+    ]
+    if query_matches:
+        score += 6 * len(query_matches)
+        reasons.append(f"passt zum angefragten Thema {', '.join(query_matches)}")
+
+    interest_matches = sorted(normalized_focus_topics & interest_signals)
+    if interest_matches:
+        score += 4 * len(interest_matches)
+        reasons.append(
+            "passt zu deinen Interessen "
+            f"({', '.join(interest_matches[:3])})"
+        )
+
+    module_matches = sorted(normalized_focus_topics & (completed_signals | open_signals))
+    if module_matches:
+        score += 2 * len(module_matches)
+        reasons.append(
+            "knüpft an deinen Studienverlauf an "
+            f"({', '.join(module_matches[:3])})"
+        )
+
+    if capacity_status == "available":
+        score += 4
+        reasons.append(f"hat aktuell {available_slots} freie Betreuungskapazitäten")
+    elif capacity_status == "limited":
+        score += 1
+        reasons.append(f"hat nur begrenzte Kapazität ({available_slots} Slot)")
+    else:
+        score -= 6
+        reasons.append("ist aktuell nicht verfügbar")
+
+    if score <= 0:
+        return None
+
+    return ProfessorRecommendation(
+        display_name=professor.get("display_name", "Unbekannte Person"),
+        focus_topics=list(focus_topics),
+        capacity_status=capacity_status,
+        available_slots=available_slots,
+        score=score,
+        reasons=reasons,
+    )
+
+
+def recommend_professors(
+    profile: dict | None,
+    query: str = "",
+    limit: int = 3,
+) -> list[ProfessorRecommendation]:
+    recommendations = [
+        recommendation
+        for professor in get_professors()
+        if (recommendation := score_professor_for_profile(professor, profile, query=query))
+    ]
+    recommendations.sort(
+        key=lambda item: (
+            item.capacity_status == "unavailable",
+            -item.score,
+            -item.available_slots,
+            item.display_name,
+        )
+    )
+    return recommendations[:limit]
+
+
+def format_professor_recommendations(recommendations: list[ProfessorRecommendation]) -> str:
+    status_labels = {
+        "available": "verfügbar",
+        "limited": "begrenzt verfügbar",
+        "unavailable": "nicht verfügbar",
+    }
+    lines = []
+    for index, recommendation in enumerate(recommendations, start=1):
+        status = status_labels.get(
+            recommendation.capacity_status,
+            recommendation.capacity_status,
+        )
+        slot_label = "freier Slot" if recommendation.available_slots == 1 else "freie Slots"
+        topics = ", ".join(recommendation.focus_topics[:3])
+        reasons = "; ".join(recommendation.reasons)
+        lines.append(
+            f"{index}. {recommendation.display_name} ({status}, "
+            f"{recommendation.available_slots} {slot_label}): Fokus {topics}. {reasons}."
+        )
+    return "\n".join(lines)
+
+
+def answer_professor_question(question: str, profile: dict | None) -> dict[str, object] | None:
+    recommendations = recommend_professors(profile, query=question)
+    if not recommendations:
+        return {
+            "answer": (
+                "Für diese Professorenempfehlung fehlen aktuell passende Profil- "
+                "oder Professorendaten."
+            ),
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Professorendatenbank"),
+            "intent": "professor_matching",
+        }
+
+    answer = (
+        "Für dein Profil würde ich diese Betreuungspersonen zuerst prüfen:\n"
+        f"{format_professor_recommendations(recommendations)}\n"
+        "Die Empfehlung ist ein Matching aus Interessen, Studienverlauf, Themenfokus "
+        "und aktueller Verfügbarkeit."
+    )
+    return {
+        "answer": answer,
+        "sources": build_source_list(
+            PROFILE_SOURCE_LABEL,
+            "Professorendatenbank",
+            "Content-Based Matching",
+        ),
+        "intent": "professor_matching",
+    }
 
 
 def format_recommendations(recommendations: list[AdvisingRecommendation]) -> str:
@@ -1087,6 +1271,10 @@ def ask_with_sources(
         )
 
     profile = get_student_profile(student_id)
+    if route.intent == "professor_matching":
+        professor_answer = answer_professor_question(question, profile)
+        return attach_route(professor_answer, route)
+
     if route.intent == "advising":
         profile_answer = answer_advising_question(question, profile) or answer_profile_question(
             question,

@@ -554,6 +554,75 @@ h2 {
   color: var(--muted);
 }
 
+.professorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.professorCard {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.professorCard.available {
+  border-left: 4px solid #1fb455;
+}
+
+.professorCard.limited {
+  border-left: 4px solid #f59e0b;
+}
+
+.professorCard.unavailable {
+  opacity: 0.72;
+}
+
+.professorCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.professorCard h3 {
+  margin: 0;
+  line-height: 1.18;
+}
+
+.professorCard p,
+.professorCard small {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.capacityPill {
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.capacityPill.available {
+  color: #176c2f;
+  background: #effaf2;
+}
+
+.capacityPill.limited {
+  color: #8a5200;
+  background: #fff8db;
+}
+
+.capacityPill.unavailable {
+  color: var(--muted);
+  background: #eeeeee;
+}
+
 .scoreBadge {
   display: grid;
   place-items: center;
@@ -1188,6 +1257,7 @@ button:disabled {
   .profileGrid,
   .studyPlanGrid,
   .recommendationBoard,
+  .professorGrid,
   .advisingList.expanded {
     grid-template-columns: 1fr;
   }

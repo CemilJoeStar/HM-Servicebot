@@ -21,6 +21,8 @@ from rag_prototype import (
     ask,
     ask_with_sources,
     build_supabase_client,
+    get_knowledge_documents,
+    get_professors,
     get_student_profile,
     ingest,
 )
@@ -183,6 +185,22 @@ def read_student(student_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Student profile not found.")
 
     return profile
+
+
+@app.get("/api/professors")
+def list_professors() -> list[dict]:
+    try:
+        return get_professors()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
+
+
+@app.get("/api/knowledge-documents")
+def list_knowledge_documents() -> list[dict]:
+    try:
+        return get_knowledge_documents()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc
 
 
 @app.get("/api/students/{student_id}/chats")

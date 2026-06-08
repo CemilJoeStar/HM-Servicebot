@@ -8,8 +8,8 @@ const EXAMPLE_QUESTIONS = [
   "Bis wann muss ich mich für das Sommersemester rückmelden?",
   "Kann ich meine Bachelorarbeit anmelden?",
   "Welche Wahlpflichtmodule passen zu mir?",
+  "Welcher Professor passt zu mir?",
   "Was sollte ich als Nächstes machen?",
-  "Welcher Schwerpunkt passt zu mir?",
 ];
 const MODULE_CATALOG = [
   {
@@ -127,6 +127,30 @@ function getTopCourseRecommendations(studentProfile, completedModules, openModul
     .slice(0, 3);
 }
 
+function getCapacityLabel(status) {
+  if (status === "available") {
+    return "verfügbar";
+  }
+  if (status === "limited") {
+    return "begrenzt verfügbar";
+  }
+  return "nicht verfügbar";
+}
+
+function getProfessorScore(professor, interests) {
+  const topicSet = new Set((professor.focus_topics || []).map((topic) => normalizeText(topic)));
+  const interestSet = new Set(interests.map((interest) => normalizeText(interest)));
+  const topicMatches = [...topicSet].filter((topic) => interestSet.has(topic)).length;
+  const capacityScore =
+    professor.capacity_status === "available"
+      ? 4
+      : professor.capacity_status === "limited"
+        ? 1
+        : -4;
+
+  return topicMatches * 4 + Number(professor.available_slots || 0) + capacityScore;
+}
+
 function App() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
@@ -138,6 +162,8 @@ function App() {
   const [isAsking, setIsAsking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
   const [studentProfile, setStudentProfile] = useState(null);
+  const [professors, setProfessors] = useState([]);
+  const [knowledgeDocuments, setKnowledgeDocuments] = useState([]);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [shouldSaveChat, setShouldSaveChat] = useState(true);
   const [activeView, setActiveView] = useState("chat");
@@ -179,6 +205,20 @@ function App() {
     openModules,
     interests
   );
+  const rankedProfessors = [...professors]
+    .map((professor) => ({
+      ...professor,
+      score: getProfessorScore(professor, interests),
+    }))
+    .sort((left, right) => {
+      if (left.capacity_status === "unavailable" && right.capacity_status !== "unavailable") {
+        return 1;
+      }
+      if (right.capacity_status === "unavailable" && left.capacity_status !== "unavailable") {
+        return -1;
+      }
+      return right.score - left.score || right.available_slots - left.available_slots;
+    });
   const completedModuleNames = new Set(completedModules.map((module) => normalizeText(module.name)));
   const openModuleNames = new Set(openModules.map((module) => normalizeText(module.name)));
   const studyPlanModules = STUDY_PLAN_MODULES.map((module) => {
@@ -206,12 +246,21 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [profileResponse, chatsResponse] = await Promise.all([
+        const [
+          profileResponse,
+          chatsResponse,
+          professorsResponse,
+          knowledgeResponse,
+        ] = await Promise.all([
           fetch(`${API_BASE_URL}/api/students/${STUDENT_ID}`),
           fetch(`${API_BASE_URL}/api/students/${STUDENT_ID}/chats`),
+          fetch(`${API_BASE_URL}/api/professors`),
+          fetch(`${API_BASE_URL}/api/knowledge-documents`),
         ]);
         const profileData = await profileResponse.json();
         const chatsData = await chatsResponse.json();
+        const professorsData = await professorsResponse.json();
+        const knowledgeData = await knowledgeResponse.json();
 
         if (!profileResponse.ok) {
           throw new Error(
@@ -221,9 +270,17 @@ function App() {
         if (!chatsResponse.ok) {
           throw new Error(chatsData.detail || "Chats konnten nicht geladen werden.");
         }
+        if (!professorsResponse.ok) {
+          throw new Error(professorsData.detail || "Professoren konnten nicht geladen werden.");
+        }
+        if (!knowledgeResponse.ok) {
+          throw new Error(knowledgeData.detail || "Wissensbasis konnte nicht geladen werden.");
+        }
 
         setStudentProfile(profileData);
         setSavedChats(chatsData);
+        setProfessors(professorsData);
+        setKnowledgeDocuments(knowledgeData);
       } catch (error) {
         setAppStatus(error.message, "error");
       }
@@ -785,6 +842,39 @@ function App() {
           </div>
         )}
 
+        {activeView === "professors" && (
+          <div className="focusView">
+            <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
+              Zurück zum Chat
+            </button>
+            <header className="focusHeader">
+              <p className="eyebrow">Betreuung & Beratung</p>
+              <h2>Professorenmatching</h2>
+              <p>Betreuungspersonen werden nach Themenfokus, Interessen und freien Kapazitäten gerankt.</p>
+            </header>
+            <div className="professorGrid">
+              {rankedProfessors.map((professor) => (
+                <article className={`professorCard ${professor.capacity_status}`} key={professor.id}>
+                  <div className="professorCardHeader">
+                    <span className="scoreBadge">{professor.score}</span>
+                    <span className={`capacityPill ${professor.capacity_status}`}>
+                      {getCapacityLabel(professor.capacity_status)}
+                    </span>
+                  </div>
+                  <h3>{professor.display_name}</h3>
+                  <p>{professor.department} · {professor.available_slots} freie Slots</p>
+                  <div className="tagList">
+                    {(professor.focus_topics || []).map((topic) => (
+                      <span key={`${professor.id}-${topic}`}>{topic}</span>
+                    ))}
+                  </div>
+                  <small>{professor.notes}</small>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeView === "knowledge" && (
           <div className="focusView">
             <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
@@ -796,18 +886,14 @@ function App() {
               <p>Regeln und Fristen kommen aus indexierten Quellen. Profildaten werden separat behandelt.</p>
             </header>
             <div className="knowledgeCards">
-              <article>
-                <strong>Rückmeldeordnung Sommersemester 2026</strong>
-                <small>verifiziert · aktiv · Quelle für Rückmeldefristen</small>
-              </article>
-              <article>
-                <strong>Allgemeine Prüfungsordnung 2024</strong>
-                <small>verifiziert · aktiv · Quelle für Prüfungen und Bachelorarbeit</small>
-              </article>
-              <article>
-                <strong>Modulkatalog Wirtschaftsinformatik 2026</strong>
-                <small>strukturiert · aktiv · Quelle für Empfehlungen</small>
-              </article>
+              {knowledgeDocuments.map((document) => (
+                <article key={document.id}>
+                  <strong>{document.title}</strong>
+                  <small>
+                    {document.status} · Version {document.version} · {document.chunk_count} Chunks
+                  </small>
+                </article>
+              ))}
             </div>
             <div className="adminContent focusAdmin">
               <p>Die Wissensbasis ist für RAG technisch nötig, aber für Studierende kein normaler Bedien-Schritt.</p>
@@ -855,6 +941,18 @@ function App() {
           <span>
             <strong>Empfehlungen</strong>
             <small>{recommendedCourses.length} Modulvorschläge</small>
+          </span>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        <button
+          className={activeView === "professors" ? "viewCard active" : "viewCard"}
+          type="button"
+          onClick={() => setActiveView("professors")}
+        >
+          <span>
+            <strong>Professoren</strong>
+            <small>{rankedProfessors.length} Betreuungspersonen</small>
           </span>
           <b aria-hidden="true">›</b>
         </button>
