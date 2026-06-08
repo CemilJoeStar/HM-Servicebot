@@ -182,6 +182,30 @@ function getProfessorGroups(rankedProfessors) {
     .filter((group) => group.professors.length > 0);
 }
 
+function createProfessorMailto(professor, studentProfile) {
+  const recipient = professor.email || "";
+  const subject = "Anfrage zu möglicher Betreuung einer Abschlussarbeit";
+  const studentName = studentProfile?.display_name || "";
+  const studyProgram = studentProfile?.study_program || "meinem Studiengang";
+  const salutationName = professor.display_name
+    .replace(/^Prof\. Dr\. /, "Prof. Dr. ")
+    .trim();
+  const body = [
+    `Guten Tag ${salutationName},`,
+    "",
+    `ich studiere ${studyProgram} an der Hochschule München und befinde mich aktuell in der Planungsphase für eine mögliche Abschlussarbeit.`,
+    "",
+    "Über die Smart-Uni-Plattform bin ich auf Ihr Profil aufmerksam geworden, da Ihre angegebenen Schwerpunkte grundsätzlich zu meinem Studienverlauf passen könnten.",
+    "",
+    "Ich würde mich gerne erkundigen, ob Sie aktuell grundsätzlich Betreuungskapazitäten haben und ob ein kurzes Gespräch zur Themenfindung möglich wäre.",
+    "",
+    "Mit freundlichen Grüßen",
+    studentName,
+  ].join("\n");
+
+  return `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function App() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
@@ -907,12 +931,25 @@ function App() {
                         </div>
                         <h3>{professor.display_name}</h3>
                         <p>{professor.department} · {professor.available_slots} freie Slots</p>
+                        {professor.email && (
+                          <a className="emailLink" href={`mailto:${professor.email}`}>
+                            {professor.email}
+                          </a>
+                        )}
                         <div className="tagList">
                           {(professor.focus_topics || []).map((topic) => (
                             <span key={`${professor.id}-${topic}`}>{topic}</span>
                           ))}
                         </div>
                         <small>{professor.notes}</small>
+                        {professor.email && professor.capacity_status !== "unavailable" && (
+                          <a
+                            className="contactButton"
+                            href={createProfessorMailto(professor, studentProfile)}
+                          >
+                            Mail vorbereiten
+                          </a>
+                        )}
                       </article>
                     ))}
                   </div>

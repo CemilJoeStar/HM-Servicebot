@@ -659,6 +659,40 @@ h2 {
   line-height: 1.35;
 }
 
+.emailLink {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--hm-red-dark);
+  font-size: 0.86rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.emailLink:hover {
+  text-decoration: underline;
+}
+
+.contactButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--hm-red);
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.contactButton:hover {
+  background: var(--hm-red-dark);
+}
+
 .capacityPill {
   padding: 6px 9px;
   border-radius: 999px;
