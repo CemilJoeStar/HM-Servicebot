@@ -408,18 +408,24 @@ h2 {
 }
 
 .studyPlanGrid {
+  --study-column-padding: 12px;
+  --study-inner-radius: 8px;
+  --study-outer-radius: calc(var(--study-inner-radius) + var(--study-column-padding));
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .semesterColumn {
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 12px;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--study-column-padding);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--study-outer-radius);
   background: #ffffff;
 }
 
@@ -431,34 +437,42 @@ h2 {
 }
 
 .moduleTile {
-  position: relative;
   display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 4px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
   min-height: 90px;
-  padding: 12px 12px 12px 40px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--study-inner-radius);
   background: var(--soft-gray);
 }
 
 .moduleTile strong {
+  min-width: 0;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .moduleTile small {
+  grid-column: 2;
+  min-width: 0;
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .statusIcon {
-  position: absolute;
-  top: 13px;
-  left: 12px;
   display: grid;
   place-items: center;
   width: 20px;
   height: 20px;
+  margin-top: 1px;
   border-radius: 50%;
 }
 
@@ -1142,6 +1156,10 @@ button:disabled {
     grid-template-columns: 240px minmax(0, 1fr);
   }
 
+  .studyPlanGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .rightRail {
     grid-column: 1 / -1;
     display: grid;
@@ -1164,6 +1182,13 @@ button:disabled {
   }
 
   .rightRail {
+    grid-template-columns: 1fr;
+  }
+
+  .profileGrid,
+  .studyPlanGrid,
+  .recommendationBoard,
+  .advisingList.expanded {
     grid-template-columns: 1fr;
   }
 
