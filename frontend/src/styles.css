@@ -42,7 +42,8 @@ button {
 
 .leftRail,
 .rightRail,
-.chatLayout {
+.chatLayout,
+.focusLayout {
   min-height: calc(100vh - 32px);
 }
 
@@ -56,7 +57,8 @@ button {
 .railBrand,
 .savedChats,
 .infoCard,
-.chatLayout {
+.chatLayout,
+.focusLayout {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -285,6 +287,296 @@ h2 {
   gap: 12px;
   min-width: 0;
   padding: 16px;
+}
+
+.focusLayout {
+  min-width: 0;
+  padding: 22px;
+  overflow-y: auto;
+}
+
+.focusView {
+  display: grid;
+  gap: 18px;
+}
+
+.backButton {
+  width: fit-content;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  font-weight: 750;
+}
+
+.backButton:hover {
+  border-color: var(--hm-red);
+  background: var(--soft-red);
+}
+
+.focusHeader {
+  display: grid;
+  gap: 6px;
+  max-width: 780px;
+}
+
+.focusHeader h2 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.08;
+}
+
+.focusHeader p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.profileGrid div {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.profileGrid dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.profileGrid dd {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.statusLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.statusLegend span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.statusLegend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.statusLegend i.passed {
+  background: #1fb455;
+}
+
+.statusLegend i.open {
+  background: var(--hm-red);
+}
+
+.statusLegend i.failed {
+  background: #f59e0b;
+}
+
+.statusLegend i.notStarted {
+  background: #b7bbc3;
+}
+
+.studyPlanGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.semesterColumn {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.semesterColumn h3 {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.moduleTile {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-height: 90px;
+  padding: 12px 12px 12px 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.moduleTile strong {
+  line-height: 1.2;
+}
+
+.moduleTile small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.statusIcon {
+  position: absolute;
+  top: 13px;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.moduleTile.passed {
+  border-color: #b9e2c3;
+  background: #effaf2;
+}
+
+.moduleTile.passed .statusIcon {
+  background: #1fb455;
+}
+
+.moduleTile.passed .statusIcon::after {
+  content: "✓";
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.moduleTile.open {
+  border-color: #ffc1c6;
+  background: var(--soft-red);
+}
+
+.moduleTile.open .statusIcon {
+  background: var(--hm-red);
+}
+
+.moduleTile.open .statusIcon::after {
+  content: "!";
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.moduleTile.failed {
+  border-color: #facc15;
+  background: #fff8db;
+}
+
+.moduleTile.failed .statusIcon {
+  background: #f59e0b;
+}
+
+.moduleTile.failed .statusIcon::after {
+  content: "×";
+  color: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.moduleTile.notStarted .statusIcon {
+  border: 2px solid #b7bbc3;
+  background: #ffffff;
+}
+
+.recommendationBoard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.recommendationBoard article {
+  display: grid;
+  gap: 14px;
+  min-height: 150px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.recommendationBoard h3 {
+  margin: 0 0 6px;
+}
+
+.recommendationBoard p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.scoreBadge {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--hm-red);
+  font-weight: 900;
+}
+
+.advisingList.expanded {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.knowledgeCards {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledgeCards article {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid #24c35a;
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.knowledgeCards small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.focusAdmin {
+  margin-top: 4px;
 }
 
 .conversation {
@@ -557,6 +849,54 @@ h2 {
   min-height: 40px;
 }
 
+.viewCard {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 84px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 16px 34px rgba(22, 22, 22, 0.06);
+}
+
+.viewCard:hover,
+.viewCard.active {
+  border-color: var(--hm-red);
+  background: var(--soft-red);
+}
+
+.viewCard.compact {
+  min-height: 68px;
+}
+
+.viewCard span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.viewCard strong {
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.viewCard small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.viewCard b {
+  color: var(--muted);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
 .infoCard {
   padding: 16px;
 }
@@ -818,7 +1158,8 @@ button:disabled {
 
   .leftRail,
   .rightRail,
-  .chatLayout {
+  .chatLayout,
+  .focusLayout {
     min-height: auto;
   }
 

@@ -55,6 +55,24 @@ const MODULE_CATALOG = [
     minEcts: 90,
   },
 ];
+const STUDY_PLAN_MODULES = [
+  { semester: 1, name: "Programmierung 1", ects: 5, area: "Informatik" },
+  { semester: 1, name: "Datenbanken", ects: 5, area: "Informatik" },
+  { semester: 1, name: "Wirtschaftsinformatik", ects: 5, area: "Grundlagen" },
+  { semester: 2, name: "Statistik", ects: 5, area: "Methoden" },
+  { semester: 2, name: "Marketing", ects: 5, area: "Wirtschaft" },
+  { semester: 2, name: "Wirtschaftsmathematik II", ects: 5, area: "Methoden" },
+  { semester: 3, name: "Software Engineering", ects: 5, area: "Informatik" },
+  { semester: 3, name: "Geschäftsprozessmanagement", ects: 5, area: "Prozesse" },
+  { semester: 3, name: "Business Intelligence", ects: 5, area: "Data" },
+  { semester: 4, name: "IT-Sicherheit", ects: 5, area: "Informatik" },
+  { semester: 4, name: "Projektseminar", ects: 5, area: "Projekt" },
+  { semester: 5, name: "Data Mining", ects: 5, area: "Wahlpflicht" },
+  { semester: 5, name: "Cloud-Anwendungen", ects: 5, area: "Wahlpflicht" },
+  { semester: 6, name: "Praxissemester", ects: 30, area: "Praxis" },
+  { semester: 7, name: "Bachelorarbeit", ects: 12, area: "Abschluss" },
+];
+const FAILED_MODULES = new Set(["wirtschaftsmathematik ii"]);
 const INITIAL_MESSAGES = [
   {
     role: "assistant",
@@ -122,6 +140,7 @@ function App() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [shouldSaveChat, setShouldSaveChat] = useState(true);
+  const [activeView, setActiveView] = useState("chat");
 
   const profileNotes = studentProfile?.notes || {};
   const completedModules = Array.isArray(profileNotes.completed_modules)
@@ -160,6 +179,29 @@ function App() {
     openModules,
     interests
   );
+  const completedModuleNames = new Set(completedModules.map((module) => normalizeText(module.name)));
+  const openModuleNames = new Set(openModules.map((module) => normalizeText(module.name)));
+  const studyPlanModules = STUDY_PLAN_MODULES.map((module) => {
+    const normalizedName = normalizeText(module.name);
+    let status = "notStarted";
+
+    if (completedModuleNames.has(normalizedName)) {
+      status = "passed";
+    } else if (openModuleNames.has(normalizedName)) {
+      status = "open";
+    } else if (FAILED_MODULES.has(normalizedName)) {
+      status = "failed";
+    }
+
+    return { ...module, status };
+  });
+  const studyPlanBySemester = studyPlanModules.reduce((groups, module) => {
+    const semester = String(module.semester);
+    return {
+      ...groups,
+      [semester]: [...(groups[semester] || []), module],
+    };
+  }, {});
 
   useEffect(() => {
     async function loadInitialData() {
@@ -220,6 +262,7 @@ function App() {
     setActiveChatId(null);
     setQuestion("");
     setOpenMenuChatId(null);
+    setActiveView("chat");
     setAppStatus("Neuer Chat gestartet.", "success");
   }
 
@@ -235,6 +278,7 @@ function App() {
       setMessages(data.messages);
       setActiveChatId(data.id);
       setShouldSaveChat(true);
+      setActiveView("chat");
       setQuestion("");
       setOpenMenuChatId(null);
       setAppStatus(`${data.title} geladen.`, "success");
@@ -566,191 +610,171 @@ function App() {
         )}
       </aside>
 
-      <section className="chatLayout">
-        <div className="conversation" aria-live="polite">
-          {messages.map((message, index) => (
-            <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-              <div className="avatar">{message.role === "assistant" ? "HM" : "du"}</div>
-              <div className="messageBubble">
-                <p>{message.text}</p>
-                {message.role === "assistant" && message.routeLabel && (
-                  <div className="routeMeta" title={message.routeReason || ""}>
-                    Route: {message.routeLabel}
+      <section className={activeView === "chat" ? "chatLayout" : "focusLayout"}>
+        {activeView === "chat" && (
+          <>
+            <div className="conversation" aria-live="polite">
+              {messages.map((message, index) => (
+                <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
+                  <div className="avatar">{message.role === "assistant" ? "HM" : "du"}</div>
+                  <div className="messageBubble">
+                    <p>{message.text}</p>
+                    {message.role === "assistant" && message.routeLabel && (
+                      <div className="routeMeta" title={message.routeReason || ""}>
+                        Route: {message.routeLabel}
+                      </div>
+                    )}
+                    {message.role === "assistant" && message.sources?.length > 0 && (
+                      <div className="sourceList" aria-label="Verwendete Quellen">
+                        {message.sources.map((source) => (
+                          <span className="sourcePill" key={source}>
+                            <span className="sourceDot" aria-hidden="true" />
+                            <strong>Quelle:</strong>
+                            <small>{source}</small>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-                {message.role === "assistant" && message.sources?.length > 0 && (
-                  <div className="sourceList" aria-label="Verwendete Quellen">
-                    {message.sources.map((source) => (
-                      <span className="sourcePill" key={source}>
-                        <span className="sourceDot" aria-hidden="true" />
-                        <strong>Quelle:</strong>
-                        <small>{source}</small>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
+                </article>
+              ))}
 
-          {isAsking && (
-            <article className="message assistant">
-              <div className="avatar">HM</div>
-              <p>Ich suche die passende Information...</p>
-            </article>
-          )}
-        </div>
-
-        <div className="suggestions">
-          {EXAMPLE_QUESTIONS.map((example) => (
-            <button
-              className="suggestionButton"
-              key={example}
-              type="button"
-              onClick={() => setQuestion(example)}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
-
-        {statusType !== "idle" && <div className={`statusBox ${statusType}`}>{status}</div>}
-
-        <label className="savePreference">
-          <input
-            checked={shouldSaveChat}
-            type="checkbox"
-            onChange={handleSavePreferenceChange}
-          />
-          <span>
-            <strong>Chat speichern</strong>
-            <small>30 Tage sichtbar, Löschen anonymisiert den Verlauf</small>
-          </span>
-        </label>
-
-        <form className="composer" onSubmit={askQuestion}>
-          <textarea
-            aria-label="Studentische Frage"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-            placeholder="Frage zum Studium stellen..."
-            rows={1}
-          />
-          <button className="sendButton" type="submit" disabled={isAsking || isIngesting}>
-            {isAsking ? "..." : "Senden"}
-          </button>
-        </form>
-
-        <details className="adminPanel">
-          <summary>Wissensbasis verwalten</summary>
-          <div className="adminContent">
-            <p>
-              Die Wissensbasis ist für RAG technisch nötig, aber für Studierende
-              kein normaler Bedien-Schritt.
-            </p>
-            <button className="secondaryButton" onClick={ingestFaq} disabled={isIngesting || isAsking}>
-              {isIngesting ? "Indexiere..." : "FAQ neu indexieren"}
-            </button>
-            <span className={hasIndexed ? "indexPill ready" : "indexPill"}>
-              {hasIndexed ? "Index bereit" : "Nicht indexiert"}
-            </span>
-          </div>
-        </details>
-      </section>
-
-      <aside className="rightRail">
-        <details className="infoCard collapsibleCard" open>
-          <summary>
-            <h2>Studentenprofil</h2>
-            <span aria-hidden="true">⌄</span>
-          </summary>
-          {studentProfile ? (
-            <dl className="profileList">
-              <div>
-                <dt>Name</dt>
-                <dd>{studentProfile.display_name}</dd>
-              </div>
-              <div>
-                <dt>Studiengang</dt>
-                <dd>{studentProfile.study_program}</dd>
-              </div>
-              <div>
-                <dt>Semester</dt>
-                <dd>{studentProfile.semester}</dd>
-              </div>
-              <div>
-                <dt>ECTS</dt>
-                <dd>{studentProfile.ects_earned}</dd>
-              </div>
-              <div>
-                <dt>Semesterbeitrag</dt>
-                <dd>{studentProfile.semester_fee_paid ? "bezahlt" : "nicht bezahlt"}</dd>
-              </div>
-              <div>
-                <dt>Bachelorarbeit</dt>
-                <dd>{studentProfile.thesis_registered ? "angemeldet" : "nicht angemeldet"}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="muted">Profil wird geladen...</p>
-          )}
-        </details>
-
-        {studentProfile && (
-          <details className="infoCard collapsibleCard" open>
-            <summary>
-              <h2>Studienverlauf</h2>
-              <span aria-hidden="true">⌄</span>
-            </summary>
-            <div className="moduleBlock">
-              <h3>Offene Module</h3>
-              {openModules.length > 0 ? (
-                <ul>
-                  {openModules.map((module) => (
-                    <li key={module.name}>
-                      <span>{module.name}</span>
-                      <small>{module.ects} ECTS</small>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted">Keine offenen Module hinterlegt.</p>
+              {isAsking && (
+                <article className="message assistant">
+                  <div className="avatar">HM</div>
+                  <p>Ich suche die passende Information...</p>
+                </article>
               )}
             </div>
-            <div className="moduleBlock compact">
-              <h3>Interessen</h3>
-              <div className="tagList">
-                {interests.map((interest) => (
-                  <span key={interest}>{interest}</span>
-                ))}
-              </div>
+
+            <div className="suggestions">
+              {EXAMPLE_QUESTIONS.map((example) => (
+                <button
+                  className="suggestionButton"
+                  key={example}
+                  type="button"
+                  onClick={() => setQuestion(example)}
+                >
+                  {example}
+                </button>
+              ))}
             </div>
-            <div className="moduleBlock compact">
-              <h3>Bestanden</h3>
-              <p className="muted">
-                {completedModules.length} Module hinterlegt
-              </p>
-            </div>
-          </details>
+
+            {statusType !== "idle" && <div className={`statusBox ${statusType}`}>{status}</div>}
+
+            <label className="savePreference">
+              <input
+                checked={shouldSaveChat}
+                type="checkbox"
+                onChange={handleSavePreferenceChange}
+              />
+              <span>
+                <strong>Chat speichern</strong>
+                <small>30 Tage sichtbar, Löschen anonymisiert den Verlauf</small>
+              </span>
+            </label>
+
+            <form className="composer" onSubmit={askQuestion}>
+              <textarea
+                aria-label="Studentische Frage"
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder="Frage zum Studium stellen..."
+                rows={1}
+              />
+              <button className="sendButton" type="submit" disabled={isAsking || isIngesting}>
+                {isAsking ? "..." : "Senden"}
+              </button>
+            </form>
+          </>
         )}
 
-        {studentProfile && advisingSteps.length > 0 && (
-          <details className="infoCard collapsibleCard" open>
-            <summary>
-              <h2>Beratungslogik</h2>
-              <span aria-hidden="true">⌄</span>
-            </summary>
-            <p className="muted">
-              Erste Empfehlungen werden aus Profil, ECTS, offenen Modulen und
-              Interessen abgeleitet.
-            </p>
-            <ol className="advisingList">
+        {activeView === "profile" && (
+          <div className="focusView">
+            <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
+              Zurück zum Chat
+            </button>
+            <header className="focusHeader">
+              <p className="eyebrow">Studierendenakte</p>
+              <h2>Studentenprofil</h2>
+              <p>Die Daten dienen der Personalisierung von Antworten und Empfehlungen.</p>
+            </header>
+            {studentProfile ? (
+              <dl className="profileGrid">
+                <div><dt>Name</dt><dd>{studentProfile.display_name}</dd></div>
+                <div><dt>Studiengang</dt><dd>{studentProfile.study_program}</dd></div>
+                <div><dt>Semester</dt><dd>{studentProfile.semester}</dd></div>
+                <div><dt>ECTS</dt><dd>{studentProfile.ects_earned}</dd></div>
+                <div><dt>Semesterbeitrag</dt><dd>{studentProfile.semester_fee_paid ? "bezahlt" : "nicht bezahlt"}</dd></div>
+                <div><dt>Bachelorarbeit</dt><dd>{studentProfile.thesis_registered ? "angemeldet" : "nicht angemeldet"}</dd></div>
+              </dl>
+            ) : (
+              <p className="muted">Profil wird geladen...</p>
+            )}
+          </div>
+        )}
+
+        {activeView === "study" && (
+          <div className="focusView">
+            <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
+              Zurück zum Chat
+            </button>
+            <header className="focusHeader">
+              <p className="eyebrow">Studienverlauf</p>
+              <h2>Modulstatus nach Semester</h2>
+              <p>Bestandene, offene und noch nicht angetretene Module werden getrennt sichtbar.</p>
+            </header>
+            <div className="statusLegend">
+              <span><i className="passed" /> bestanden</span>
+              <span><i className="open" /> offen</span>
+              <span><i className="failed" /> Fehlversuch</span>
+              <span><i className="notStarted" /> nicht angetreten</span>
+            </div>
+            <div className="studyPlanGrid">
+              {Object.entries(studyPlanBySemester).map(([semester, modules]) => (
+                <section className="semesterColumn" key={semester}>
+                  <h3>{semester}. Semester</h3>
+                  {modules.map((module) => (
+                    <article className={`moduleTile ${module.status}`} key={module.name}>
+                      <span className="statusIcon" aria-hidden="true" />
+                      <strong>{module.name}</strong>
+                      <small>{module.ects} ECTS · {module.area}</small>
+                    </article>
+                  ))}
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeView === "recommendations" && (
+          <div className="focusView">
+            <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
+              Zurück zum Chat
+            </button>
+            <header className="focusHeader">
+              <p className="eyebrow">Empfehlungssystem</p>
+              <h2>Hybrid-Recommender</h2>
+              <p>Module werden aus Interessen, Studienverlauf und ECTS-Voraussetzungen gerankt.</p>
+            </header>
+            <div className="recommendationBoard">
+              {recommendedCourses.map((course) => (
+                <article key={course.name}>
+                  <span className="scoreBadge">{course.score}</span>
+                  <div>
+                    <h3>{course.name}</h3>
+                    <p>{course.ects} ECTS · {course.focus}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <ol className="advisingList expanded">
               {advisingSteps.map((step) => (
                 <li key={step.label}>
                   <strong>{step.label}</strong>
@@ -758,46 +782,106 @@ function App() {
                 </li>
               ))}
             </ol>
-          </details>
+          </div>
         )}
 
-        {recommendedCourses.length > 0 && (
-          <details className="infoCard collapsibleCard" open>
-            <summary>
-              <h2>Empfehlungssystem</h2>
-              <span aria-hidden="true">⌄</span>
-            </summary>
-            <p className="muted">
-              Content-Based Matching aus Interessen, bestandenen Modulen und
-              einfachen ECTS-Voraussetzungen.
-            </p>
-            <div className="recommendationList">
-              {recommendedCourses.map((course) => (
-                <article key={course.name}>
-                  <div>
-                    <strong>{course.name}</strong>
-                    <small>{course.ects} ECTS · {course.focus}</small>
-                  </div>
-                  <span>{course.score}</span>
-                </article>
-              ))}
+        {activeView === "knowledge" && (
+          <div className="focusView">
+            <button className="backButton" type="button" onClick={() => setActiveView("chat")}>
+              Zurück zum Chat
+            </button>
+            <header className="focusHeader">
+              <p className="eyebrow">Wissensbasis</p>
+              <h2>Verifizierte Dokumente</h2>
+              <p>Regeln und Fristen kommen aus indexierten Quellen. Profildaten werden separat behandelt.</p>
+            </header>
+            <div className="knowledgeCards">
+              <article>
+                <strong>Rückmeldeordnung Sommersemester 2026</strong>
+                <small>verifiziert · aktiv · Quelle für Rückmeldefristen</small>
+              </article>
+              <article>
+                <strong>Allgemeine Prüfungsordnung 2024</strong>
+                <small>verifiziert · aktiv · Quelle für Prüfungen und Bachelorarbeit</small>
+              </article>
+              <article>
+                <strong>Modulkatalog Wirtschaftsinformatik 2026</strong>
+                <small>strukturiert · aktiv · Quelle für Empfehlungen</small>
+              </article>
             </div>
-          </details>
+            <div className="adminContent focusAdmin">
+              <p>Die Wissensbasis ist für RAG technisch nötig, aber für Studierende kein normaler Bedien-Schritt.</p>
+              <button className="secondaryButton" onClick={ingestFaq} disabled={isIngesting || isAsking}>
+                {isIngesting ? "Indexiere..." : "FAQ neu indexieren"}
+              </button>
+              <span className={hasIndexed ? "indexPill ready" : "indexPill"}>
+                {hasIndexed ? "Index bereit" : "Nicht indexiert"}
+              </span>
+            </div>
+          </div>
         )}
+      </section>
 
-        <details className="infoCard collapsibleCard" open>
-          <summary>
-            <h2>Wissensbasis</h2>
-            <span aria-hidden="true">⌄</span>
-          </summary>
-          <p className="muted">
-            Offizielle Regeln kommen aus den FAQ-Chunks. Profildaten werden nur
-            zur Personalisierung genutzt.
-          </p>
-          <span className={hasIndexed ? "indexPill ready" : "indexPill"}>
-            {hasIndexed ? "Index bereit" : "Nicht indexiert"}
+      <aside className="rightRail">
+        <button
+          className={activeView === "profile" ? "viewCard active" : "viewCard"}
+          type="button"
+          onClick={() => setActiveView("profile")}
+        >
+          <span>
+            <strong>Studentenprofil</strong>
+            <small>{studentProfile?.display_name || "Profil laden"}</small>
           </span>
-        </details>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        <button
+          className={activeView === "study" ? "viewCard active" : "viewCard"}
+          type="button"
+          onClick={() => setActiveView("study")}
+        >
+          <span>
+            <strong>Studienverlauf</strong>
+            <small>{completedModules.length} bestanden · {openModules.length} offen</small>
+          </span>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        <button
+          className={activeView === "recommendations" ? "viewCard active" : "viewCard"}
+          type="button"
+          onClick={() => setActiveView("recommendations")}
+        >
+          <span>
+            <strong>Empfehlungen</strong>
+            <small>{recommendedCourses.length} Modulvorschläge</small>
+          </span>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        <button
+          className={activeView === "knowledge" ? "viewCard active" : "viewCard"}
+          type="button"
+          onClick={() => setActiveView("knowledge")}
+        >
+          <span>
+            <strong>Wissensbasis</strong>
+            <small>{hasIndexed ? "Index bereit" : "Nicht indexiert"}</small>
+          </span>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        <button
+          className={activeView === "chat" ? "viewCard active compact" : "viewCard compact"}
+          type="button"
+          onClick={() => setActiveView("chat")}
+        >
+          <span>
+            <strong>Zurück zum Chat</strong>
+            <small>Servicebot öffnen</small>
+          </span>
+          <b aria-hidden="true">›</b>
+        </button>
       </aside>
     </main>
   );
