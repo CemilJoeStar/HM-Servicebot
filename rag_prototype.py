@@ -70,6 +70,67 @@ class AdvisingRecommendation:
     priority: int
 
 
+@dataclass(frozen=True)
+class CourseRecommendation:
+    name: str
+    ects: int
+    focus: str
+    score: int
+    reasons: list[str]
+
+
+MODULE_CATALOG = [
+    {
+        "name": "Data Mining",
+        "ects": 5,
+        "focus": "Data Analytics",
+        "skills": ["data analytics", "statistik", "business intelligence", "datenbanken"],
+        "description": "Analyse größerer Datenbestände, Mustererkennung und einfache Prognosemodelle.",
+        "min_ects": 90,
+    },
+    {
+        "name": "Machine Learning Grundlagen",
+        "ects": 5,
+        "focus": "Data Analytics",
+        "skills": ["data analytics", "statistik", "programmierung 1", "business intelligence"],
+        "description": "Einführung in überwachte und unüberwachte Lernverfahren.",
+        "min_ects": 100,
+    },
+    {
+        "name": "Cloud-Anwendungen",
+        "ects": 5,
+        "focus": "Software Engineering",
+        "skills": ["software engineering", "programmierung 1", "datenbanken"],
+        "description": "Entwicklung und Betrieb skalierbarer Web- und Cloud-Systeme.",
+        "min_ects": 80,
+    },
+    {
+        "name": "IT-Sicherheit",
+        "ects": 5,
+        "focus": "Software Engineering",
+        "skills": ["software engineering", "datenbanken", "digitale prozesse"],
+        "description": "Grundlagen sicherer IT-Systeme, Risiken und Schutzmaßnahmen.",
+        "min_ects": 70,
+    },
+    {
+        "name": "Projektseminar",
+        "ects": 5,
+        "focus": "Digitale Prozesse",
+        "skills": ["digitale prozesse", "software engineering", "geschäftsprozessmanagement"],
+        "description": "Praxisnahes Teamprojekt zur Umsetzung eines digitalen Prozesses.",
+        "min_ects": 100,
+    },
+    {
+        "name": "Process Mining",
+        "ects": 5,
+        "focus": "Digitale Prozesse",
+        "skills": ["digitale prozesse", "geschäftsprozessmanagement", "data analytics"],
+        "description": "Datenbasierte Analyse und Verbesserung betrieblicher Prozesse.",
+        "min_ects": 90,
+    },
+]
+
+
 def get_source_label(content: str) -> str:
     if "## Prüfungsabmeldung" in content or "## Bachelorarbeit" in content:
         return "Allgemeine Prüfungsordnung 2024 · verifiziert"
@@ -226,6 +287,10 @@ def contains_any(text: str, keywords: Iterable[str]) -> bool:
     return any(keyword in text for keyword in keywords)
 
 
+def normalize_text(value: str) -> str:
+    return normalize_question(value).strip()
+
+
 def route_intent(question: str) -> IntentRoute:
     """Decide which platform capability should answer the question."""
     normalized = normalize_question(question)
@@ -249,6 +314,12 @@ def route_intent(question: str) -> IntentRoute:
             "prioritaet",
             "priorisieren",
             "belegen",
+            "kurs",
+            "kurse",
+            "wahlpflicht",
+            "recommender",
+            "recommendation",
+            "modulkatalog",
             "weiter machen",
             "studienverlauf",
         ],
@@ -329,6 +400,118 @@ def get_open_modules(profile: dict | None) -> list[dict]:
 
 def get_interests(profile: dict | None) -> list[str]:
     return get_profile_notes(profile).get("interests") or []
+
+
+def get_normalized_completed_module_names(profile: dict | None) -> set[str]:
+    return {
+        normalize_text(module.get("name") or "")
+        for module in get_completed_modules(profile)
+        if module.get("name")
+    }
+
+
+def get_normalized_open_module_names(profile: dict | None) -> set[str]:
+    return {
+        normalize_text(module.get("name") or "")
+        for module in get_open_modules(profile)
+        if module.get("name")
+    }
+
+
+def score_course_for_profile(
+    course: dict[str, object],
+    profile: dict | None,
+    query: str = "",
+) -> CourseRecommendation | None:
+    if not profile:
+        return None
+
+    course_name = str(course["name"])
+    normalized_course_name = normalize_text(course_name)
+    completed_module_names = get_normalized_completed_module_names(profile)
+    open_module_names = get_normalized_open_module_names(profile)
+    if normalized_course_name in completed_module_names:
+        return None
+
+    ects_earned = int(profile.get("ects_earned") or 0)
+    min_ects = int(course.get("min_ects") or 0)
+    if ects_earned < min_ects:
+        return None
+
+    completed_signals = completed_module_names
+    completed_names_by_signal = {
+        normalize_text(module.get("name") or ""): module.get("name")
+        for module in get_completed_modules(profile)
+        if module.get("name")
+    }
+    interest_signals = {normalize_text(interest) for interest in get_interests(profile)}
+    skills = {normalize_text(skill) for skill in course.get("skills", [])}
+    focus = str(course["focus"])
+    normalized_focus = normalize_text(focus)
+    normalized_query = normalize_text(query)
+
+    score = 0
+    reasons = []
+
+    if normalized_focus in normalized_query or any(skill in normalized_query for skill in skills):
+        score += 6
+        reasons.append(f"passt zum angefragten Themenfeld {focus}")
+
+    if normalized_focus in interest_signals:
+        score += 5
+        reasons.append(f"passt zu deinem Interesse {focus}")
+
+    matched_skills = sorted(skills & completed_signals)
+    if matched_skills:
+        score += 2 * len(matched_skills)
+        readable_skills = ", ".join(
+            completed_names_by_signal.get(skill, skill)
+            for skill in matched_skills[:3]
+        )
+        reasons.append(f"knüpft an bestandene Module an ({readable_skills})")
+
+    matched_interests = sorted(skills & interest_signals)
+    if matched_interests:
+        score += 2 * len(matched_interests)
+
+    if normalized_course_name in open_module_names:
+        score += 4
+        reasons.append("ist in deinem Studienverlauf noch offen hinterlegt")
+
+    if not reasons:
+        reasons.append(str(course["description"]))
+
+    return CourseRecommendation(
+        name=course_name,
+        ects=int(course["ects"]),
+        focus=focus,
+        score=score,
+        reasons=reasons,
+    )
+
+
+def recommend_courses(
+    profile: dict | None,
+    limit: int = 3,
+    query: str = "",
+) -> list[CourseRecommendation]:
+    recommendations = [
+        recommendation
+        for course in MODULE_CATALOG
+        if (recommendation := score_course_for_profile(course, profile, query=query))
+    ]
+    recommendations.sort(key=lambda item: (-item.score, item.name))
+    return recommendations[:limit]
+
+
+def format_course_recommendations(recommendations: list[CourseRecommendation]) -> str:
+    return "\n".join(
+        (
+            f"{index}. {item.name} ({item.ects} ECTS, {item.focus}): "
+            f"{'; '.join(item.reasons)}."
+        )
+        for index, item in enumerate(recommendations, start=1)
+    )
 
 
 def format_recommendations(recommendations: list[AdvisingRecommendation]) -> str:
@@ -443,6 +626,20 @@ def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommenda
             )
         )
 
+    course_recommendations = recommend_courses(profile, limit=1)
+    if course_recommendations:
+        best_course = course_recommendations[0]
+        recommendations.append(
+            AdvisingRecommendation(
+                title=f"{best_course.name} als Empfehlung prüfen",
+                rationale=(
+                    "Der Hybrid-Recommender bewertet das Modul hoch, weil es "
+                    f"{'; '.join(best_course.reasons)}."
+                ),
+                priority=3,
+            )
+        )
+
     recommendations.append(recommend_focus_area(profile))
     return recommendations
 
@@ -457,6 +654,32 @@ def answer_advising_question(question: str, profile: dict | None) -> dict[str, o
     completed_modules = get_completed_modules(profile)
     interests = get_interests(profile)
     recommendations = build_study_recommendations(profile)
+
+    if (
+        contains_any(normalized, ["wahlpflicht", "kurse", "kurs", "recommender", "recommendation"])
+        or (
+            "modul" in normalized
+            and contains_any(normalized, ["passt", "empfehl", "belegen", "waehlen"])
+        )
+    ) and "fehl" not in normalized:
+        course_recommendations = recommend_courses(profile, query=question)
+        if not course_recommendations:
+            answer = "Für eine Modulempfehlung fehlen aktuell passende Profil- oder Modulkatalogdaten."
+        else:
+            answer = (
+                "Der Hybrid-Recommender schlägt dir diese Module vor:\n"
+                f"{format_course_recommendations(course_recommendations)}\n"
+                "Die Auswahl basiert auf Interessen, bestandenen Modulen und einfachen ECTS-Voraussetzungen."
+            )
+        return {
+            "answer": answer,
+            "sources": build_source_list(
+                PROFILE_SOURCE_LABEL,
+                "Modulkatalog Wirtschaftsinformatik 2026",
+                "Content-Based Recommender",
+            ),
+            "intent": "advising",
+        }
 
     if contains_any(
         normalized,

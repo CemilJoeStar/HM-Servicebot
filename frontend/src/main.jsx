@@ -7,9 +7,53 @@ const STUDENT_ID = "demo-student-001";
 const EXAMPLE_QUESTIONS = [
   "Bis wann muss ich mich für das Sommersemester rückmelden?",
   "Kann ich meine Bachelorarbeit anmelden?",
-  "Welche Module fehlen mir noch?",
+  "Welche Wahlpflichtmodule passen zu mir?",
   "Was sollte ich als Nächstes machen?",
   "Welcher Schwerpunkt passt zu mir?",
+];
+const MODULE_CATALOG = [
+  {
+    name: "Data Mining",
+    ects: 5,
+    focus: "Data Analytics",
+    skills: ["data analytics", "statistik", "business intelligence", "datenbanken"],
+    minEcts: 90,
+  },
+  {
+    name: "Machine Learning Grundlagen",
+    ects: 5,
+    focus: "Data Analytics",
+    skills: ["data analytics", "statistik", "programmierung 1", "business intelligence"],
+    minEcts: 100,
+  },
+  {
+    name: "Cloud-Anwendungen",
+    ects: 5,
+    focus: "Software Engineering",
+    skills: ["software engineering", "programmierung 1", "datenbanken"],
+    minEcts: 80,
+  },
+  {
+    name: "IT-Sicherheit",
+    ects: 5,
+    focus: "Software Engineering",
+    skills: ["software engineering", "datenbanken", "digitale prozesse"],
+    minEcts: 70,
+  },
+  {
+    name: "Projektseminar",
+    ects: 5,
+    focus: "Digitale Prozesse",
+    skills: ["digitale prozesse", "software engineering", "geschäftsprozessmanagement"],
+    minEcts: 100,
+  },
+  {
+    name: "Process Mining",
+    ects: 5,
+    focus: "Digitale Prozesse",
+    skills: ["digitale prozesse", "geschäftsprozessmanagement", "data analytics"],
+    minEcts: 90,
+  },
 ];
 const INITIAL_MESSAGES = [
   {
@@ -17,6 +61,53 @@ const INITIAL_MESSAGES = [
     text: "Hallo, ich helfe dir bei Fragen zu Rückmeldung, Bachelorarbeit, Prüfungsabmeldung und Studierendenausweis.",
   },
 ];
+
+function normalizeText(value) {
+  return value.toLowerCase().replaceAll("ä", "ae").replaceAll("ö", "oe").replaceAll("ü", "ue");
+}
+
+function getTopCourseRecommendations(studentProfile, completedModules, openModules, interests) {
+  if (!studentProfile) {
+    return [];
+  }
+
+  const completedNames = new Set(completedModules.map((module) => normalizeText(module.name)));
+  const openNames = new Set(openModules.map((module) => normalizeText(module.name)));
+  const interestSignals = new Set(interests.map((interest) => normalizeText(interest)));
+  const ectsEarned = Number(studentProfile.ects_earned || 0);
+
+  return MODULE_CATALOG.map((module) => {
+    const normalizedName = normalizeText(module.name);
+    if (completedNames.has(normalizedName) || ectsEarned < module.minEcts) {
+      return null;
+    }
+
+    const skillSet = new Set(module.skills.map((skill) => normalizeText(skill)));
+    let score = 0;
+    const reasons = [];
+
+    if (interestSignals.has(normalizeText(module.focus))) {
+      score += 5;
+      reasons.push(module.focus);
+    }
+
+    const matchedSkills = [...skillSet].filter((skill) => completedNames.has(skill));
+    score += matchedSkills.length * 2;
+
+    const matchedInterests = [...skillSet].filter((skill) => interestSignals.has(skill));
+    score += matchedInterests.length * 2;
+
+    if (openNames.has(normalizedName)) {
+      score += 4;
+      reasons.push("offen");
+    }
+
+    return { ...module, score, reasons };
+  })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .slice(0, 3);
+}
 
 function App() {
   const [question, setQuestion] = useState("");
@@ -63,6 +154,12 @@ function App() {
         },
       ].filter(Boolean)
     : [];
+  const recommendedCourses = getTopCourseRecommendations(
+    studentProfile,
+    completedModules,
+    openModules,
+    interests
+  );
 
   useEffect(() => {
     async function loadInitialData() {
@@ -661,6 +758,30 @@ function App() {
                 </li>
               ))}
             </ol>
+          </details>
+        )}
+
+        {recommendedCourses.length > 0 && (
+          <details className="infoCard collapsibleCard" open>
+            <summary>
+              <h2>Empfehlungssystem</h2>
+              <span aria-hidden="true">⌄</span>
+            </summary>
+            <p className="muted">
+              Content-Based Matching aus Interessen, bestandenen Modulen und
+              einfachen ECTS-Voraussetzungen.
+            </p>
+            <div className="recommendationList">
+              {recommendedCourses.map((course) => (
+                <article key={course.name}>
+                  <div>
+                    <strong>{course.name}</strong>
+                    <small>{course.ects} ECTS · {course.focus}</small>
+                  </div>
+                  <span>{course.score}</span>
+                </article>
+              ))}
+            </div>
           </details>
         )}
 

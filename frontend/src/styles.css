@@ -730,6 +730,52 @@ h2 {
   line-height: 1.3;
 }
 
+.recommendationList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.recommendationList article {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-gray);
+}
+
+.recommendationList article div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recommendationList strong {
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.recommendationList small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.recommendationList article > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--hm-red);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .indexPill {
   display: inline-flex;
   padding: 8px 10px;
