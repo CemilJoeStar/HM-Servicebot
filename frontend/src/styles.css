@@ -554,6 +554,50 @@ h2 {
   color: var(--muted);
 }
 
+.professorGroups {
+  display: grid;
+  gap: 16px;
+}
+
+.professorGroup {
+  display: grid;
+  gap: 12px;
+}
+
+.professorGroup > header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.professorGroup h3,
+.professorGroup p {
+  margin: 0;
+}
+
+.professorGroup h3 {
+  font-size: 1rem;
+}
+
+.professorGroup p {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.professorGroup > header > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--hm-red);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .professorGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -587,6 +631,20 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.matchBadge {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--hm-red);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.matchBadge.unavailable {
+  color: var(--muted);
+  background: #eeeeee;
 }
 
 .professorCard h3 {

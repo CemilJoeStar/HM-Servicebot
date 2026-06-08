@@ -151,6 +151,37 @@ function getProfessorScore(professor, interests) {
   return topicMatches * 4 + Number(professor.available_slots || 0) + capacityScore;
 }
 
+function getProfessorMatchPercent(score) {
+  return Math.max(0, Math.min(100, Math.round((score / 12) * 100)));
+}
+
+function getProfessorGroups(rankedProfessors) {
+  return [
+    {
+      key: "available",
+      title: "Verfügbar",
+      description: "Aktuell freie Betreuungskapazität",
+    },
+    {
+      key: "limited",
+      title: "Begrenzt verfügbar",
+      description: "Nur wenige Slots frei",
+    },
+    {
+      key: "unavailable",
+      title: "Nicht verfügbar",
+      description: "Derzeit keine freien Kapazitäten",
+    },
+  ]
+    .map((group) => ({
+      ...group,
+      professors: rankedProfessors.filter(
+        (professor) => professor.capacity_status === group.key
+      ),
+    }))
+    .filter((group) => group.professors.length > 0);
+}
+
 function App() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
@@ -219,6 +250,7 @@ function App() {
       }
       return right.score - left.score || right.available_slots - left.available_slots;
     });
+  const professorGroups = getProfessorGroups(rankedProfessors);
   const completedModuleNames = new Set(completedModules.map((module) => normalizeText(module.name)));
   const openModuleNames = new Set(openModules.map((module) => normalizeText(module.name)));
   const studyPlanModules = STUDY_PLAN_MODULES.map((module) => {
@@ -852,24 +884,39 @@ function App() {
               <h2>Professorenmatching</h2>
               <p>Betreuungspersonen werden nach Themenfokus, Interessen und freien Kapazitäten gerankt.</p>
             </header>
-            <div className="professorGrid">
-              {rankedProfessors.map((professor) => (
-                <article className={`professorCard ${professor.capacity_status}`} key={professor.id}>
-                  <div className="professorCardHeader">
-                    <span className="scoreBadge">{professor.score}</span>
-                    <span className={`capacityPill ${professor.capacity_status}`}>
-                      {getCapacityLabel(professor.capacity_status)}
-                    </span>
-                  </div>
-                  <h3>{professor.display_name}</h3>
-                  <p>{professor.department} · {professor.available_slots} freie Slots</p>
-                  <div className="tagList">
-                    {(professor.focus_topics || []).map((topic) => (
-                      <span key={`${professor.id}-${topic}`}>{topic}</span>
+            <div className="professorGroups">
+              {professorGroups.map((group) => (
+                <section className="professorGroup" key={group.key}>
+                  <header>
+                    <div>
+                      <h3>{group.title}</h3>
+                      <p>{group.description}</p>
+                    </div>
+                    <span>{group.professors.length}</span>
+                  </header>
+                  <div className="professorGrid">
+                    {group.professors.map((professor) => (
+                      <article className={`professorCard ${professor.capacity_status}`} key={professor.id}>
+                        <div className="professorCardHeader">
+                          <span className={`matchBadge ${professor.capacity_status}`}>
+                            {getProfessorMatchPercent(professor.score)}% Match
+                          </span>
+                          <span className={`capacityPill ${professor.capacity_status}`}>
+                            {getCapacityLabel(professor.capacity_status)}
+                          </span>
+                        </div>
+                        <h3>{professor.display_name}</h3>
+                        <p>{professor.department} · {professor.available_slots} freie Slots</p>
+                        <div className="tagList">
+                          {(professor.focus_topics || []).map((topic) => (
+                            <span key={`${professor.id}-${topic}`}>{topic}</span>
+                          ))}
+                        </div>
+                        <small>{professor.notes}</small>
+                      </article>
                     ))}
                   </div>
-                  <small>{professor.notes}</small>
-                </article>
+                </section>
               ))}
             </div>
           </div>
