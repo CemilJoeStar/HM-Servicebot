@@ -28,6 +28,7 @@ import argparse
 import ast
 import math
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -52,6 +53,14 @@ DEFAULT_SOURCE_LABEL = "HM Studierendenservice FAQ 2026 · verifiziert"
 PROFILE_SOURCE_LABEL = "Studierendenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
+
+
+@dataclass(frozen=True)
+class IntentRoute:
+    intent: str
+    label: str
+    data_sources: list[str]
+    reason: str
 
 
 def get_source_label(content: str) -> str:
@@ -204,6 +213,78 @@ def format_sources(documents: Iterable[Document]) -> list[str]:
 
 def normalize_question(question: str) -> str:
     return question.lower().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+
+
+def contains_any(text: str, keywords: Iterable[str]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def route_intent(question: str) -> IntentRoute:
+    """Decide which platform capability should answer the question."""
+    normalized = normalize_question(question)
+    asks_about_self = contains_any(
+        normalized,
+        ["ich", "mein", "meine", "mir", "mich", "habe ich", "kann ich", "darf ich"],
+    )
+
+    if contains_any(
+        normalized,
+        ["schwerpunkt", "passt zu mir", "empfehl", "studienberatung", "welche module", "fehl", "pflichtmodule"],
+    ):
+        return IntentRoute(
+            intent="advising",
+            label="Studienberatung",
+            data_sources=["Studierendenprofil", "Studienverlauf"],
+            reason="Die Frage verlangt eine individuelle Einschätzung anhand des Studienverlaufs.",
+        )
+
+    if "bachelorarbeit" in normalized and asks_about_self:
+        return IntentRoute(
+            intent="advising",
+            label="Studienberatung",
+            data_sources=["Wissensbasis", "Studierendenprofil", "Studienverlauf"],
+            reason="Die Bachelorarbeitsfrage kombiniert eine Hochschulregel mit persönlichen ECTS- und Modulständen.",
+        )
+
+    if contains_any(
+        normalized,
+        ["ects", "semesterbeitrag", "bezahlt", "rueckgemeldet", "zurueckgemeldet"],
+    ) and asks_about_self:
+        return IntentRoute(
+            intent="profile",
+            label="Profilstatus",
+            data_sources=["Studierendenprofil"],
+            reason="Die Frage bezieht sich auf persönliche Statusdaten.",
+        )
+
+    if contains_any(
+        normalized,
+        ["rueckmeld", "pruefung", "pruefungsabmeldung", "studierendenausweis", "frist", "gebuehr", "bachelorarbeit"],
+    ):
+        return IntentRoute(
+            intent="rag",
+            label="Wissensbasis",
+            data_sources=["Wissensbasis"],
+            reason="Die Frage betrifft allgemeine Regeln, Fristen oder Verfahren.",
+        )
+
+    return IntentRoute(
+        intent="fallback",
+        label="Eskalation",
+        data_sources=[],
+        reason="Die Frage passt zu keiner verifizierten Route des Prototyps.",
+    )
+
+
+def attach_route(payload: dict[str, object], route: IntentRoute) -> dict[str, object]:
+    routed_payload = {
+        **payload,
+        "intent": route.intent,
+        "route_label": route.label,
+        "route_reason": route.reason,
+        "data_sources": route.data_sources,
+    }
+    return routed_payload
 
 
 def get_profile_notes(profile: dict | None) -> dict:
@@ -539,70 +620,70 @@ def ask(
     student_id: str = "demo-student-001",
     print_answer: bool = True,
 ) -> str:
-    profile = get_student_profile(student_id)
-    profile_answer = answer_profile_question(question, profile)
-    if profile_answer:
-        answer = str(profile_answer["answer"])
-        if print_answer:
-            print(answer)
-        return answer
-
-    scored_documents = retrieve_scored_documents(question)
-    top_score = scored_documents[0][0] if scored_documents else 0.0
-    if top_score < MIN_RETRIEVAL_SIMILARITY:
-        if print_answer:
-            print(FALLBACK_ANSWER)
-        return FALLBACK_ANSWER
-
-    retrieved_documents = [document for _, document in scored_documents]
-    verified_answer = answer_verified_faq_question(question, retrieved_documents)
-    if verified_answer:
-        answer = str(verified_answer["answer"])
-        if print_answer:
-            print(answer)
-        return answer
-
-    context = format_context(retrieved_documents)
-    student_profile = format_student_profile(profile)
-    chain = build_prompt() | build_llm()
-    response = chain.invoke(
-        {
-            "question": question,
-            "context": context,
-            "student_profile": student_profile,
-        }
-    )
+    response = ask_with_sources(question, student_id)
+    answer = str(response["answer"])
     if print_answer:
-        print(response.content)
-    return response.content
+        print(answer)
+    return answer
 
 
 def ask_with_sources(
     question: str,
     student_id: str = "demo-student-001",
 ) -> dict[str, object]:
+    route = route_intent(question)
+    if route.intent == "fallback":
+        return attach_route(
+            {
+                "answer": FALLBACK_ANSWER,
+                "sources": [FALLBACK_SOURCE],
+                "confidence": 0,
+            },
+            route,
+        )
+
     profile = get_student_profile(student_id)
-    profile_answer = answer_profile_question(question, profile)
-    if profile_answer:
-        return profile_answer
+    if route.intent in {"profile", "advising"}:
+        profile_answer = answer_profile_question(question, profile)
+        if profile_answer:
+            return attach_route(profile_answer, route)
+
+        return attach_route(
+            {
+                "answer": FALLBACK_ANSWER,
+                "sources": [FALLBACK_SOURCE],
+                "confidence": 0,
+            },
+            route,
+        )
 
     scored_documents = retrieve_scored_documents(question)
     top_score = scored_documents[0][0] if scored_documents else 0.0
     if top_score < MIN_RETRIEVAL_SIMILARITY:
-        return {
-            "answer": FALLBACK_ANSWER,
-            "sources": [FALLBACK_SOURCE],
-            "intent": "fallback",
-            "confidence": round(top_score, 3),
-        }
+        return attach_route(
+            {
+                "answer": FALLBACK_ANSWER,
+                "sources": [FALLBACK_SOURCE],
+                "confidence": round(top_score, 3),
+            },
+            IntentRoute(
+                intent="fallback",
+                label="Eskalation",
+                data_sources=[],
+                reason="Die ähnlichsten Wissensbasis-Treffer lagen unter der Relevanzschwelle.",
+            ),
+        )
 
     retrieved_documents = [document for _, document in scored_documents]
     verified_answer = answer_verified_faq_question(question, retrieved_documents)
     if verified_answer:
-        return {
-            **verified_answer,
-            "confidence": round(top_score, 3),
-        }
+        return attach_route(
+            {
+                **verified_answer,
+                "confidence": round(top_score, 3),
+            },
+            route,
+        )
 
     context = format_context(retrieved_documents)
     student_profile = format_student_profile(profile)
@@ -616,21 +697,30 @@ def ask_with_sources(
     )
     answer = response.content
     if answer.strip() == FALLBACK_ANSWER:
-        return {
-            "answer": FALLBACK_ANSWER,
-            "sources": [FALLBACK_SOURCE],
-            "intent": "fallback",
-            "confidence": round(top_score, 3),
-        }
+        return attach_route(
+            {
+                "answer": FALLBACK_ANSWER,
+                "sources": [FALLBACK_SOURCE],
+                "confidence": round(top_score, 3),
+            },
+            IntentRoute(
+                intent="fallback",
+                label="Eskalation",
+                data_sources=[],
+                reason="Das Modell konnte aus dem bereitgestellten Kontext keine eindeutige Antwort ableiten.",
+            ),
+        )
 
     sources = [] if answer.strip() == FALLBACK_ANSWER else format_sources(retrieved_documents)
 
-    return {
-        "answer": answer,
-        "sources": sources or [FALLBACK_SOURCE],
-        "intent": "rag",
-        "confidence": round(top_score, 3),
-    }
+    return attach_route(
+        {
+            "answer": answer,
+            "sources": sources or [FALLBACK_SOURCE],
+            "confidence": round(top_score, 3),
+        },
+        route,
+    )
 
 
 def parse_args() -> argparse.Namespace:

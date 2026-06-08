@@ -348,6 +348,20 @@ h2 {
   white-space: pre-wrap;
 }
 
+.routeMeta {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--hm-red-dark);
+  background: var(--soft-red);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
 .sourceList {
   display: flex;
   flex-wrap: wrap;

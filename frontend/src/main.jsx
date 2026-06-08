@@ -295,7 +295,13 @@ function App() {
 
       const messagesWithAnswer = [
         ...messagesWithQuestion,
-        { role: "assistant", text: data.answer, sources: data.sources || [] },
+        {
+          role: "assistant",
+          text: data.answer,
+          sources: data.sources || [],
+          routeLabel: data.route_label,
+          routeReason: data.route_reason,
+        },
       ];
       setMessages(messagesWithAnswer);
 
@@ -446,6 +452,11 @@ function App() {
               <div className="avatar">{message.role === "assistant" ? "HM" : "du"}</div>
               <div className="messageBubble">
                 <p>{message.text}</p>
+                {message.role === "assistant" && message.routeLabel && (
+                  <div className="routeMeta" title={message.routeReason || ""}>
+                    Route: {message.routeLabel}
+                  </div>
+                )}
                 {message.role === "assistant" && message.sources?.length > 0 && (
                   <div className="sourceList" aria-label="Verwendete Quellen">
                     {message.sources.map((source) => (
