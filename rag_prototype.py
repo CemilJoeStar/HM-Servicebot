@@ -53,6 +53,7 @@ DEFAULT_SOURCE_LABEL = "HM Studierendenservice FAQ 2026 · verifiziert"
 PROFILE_SOURCE_LABEL = "Studierendenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
+HUMAN_ADVISORY_SOURCE_LABEL = "Eskalationslogik Studienberatung"
 
 
 @dataclass(frozen=True)
@@ -301,6 +302,38 @@ def normalize_text(value: str) -> str:
     return normalize_question(value).strip()
 
 
+def is_human_advisory_case(question: str) -> bool:
+    """Detect questions where the bot should support, but not decide alone."""
+    normalized = normalize_question(question)
+    high_touch_keywords = [
+        "studiengang wechseln",
+        "studienwechsel",
+        "fach wechseln",
+        "wechseln",
+        "abbrechen",
+        "studium abbrechen",
+        "exmatrikulation",
+        "exmatrikulieren",
+        "zweifel",
+        "ueberfordert",
+        "anerkennung",
+        "anerkennen",
+        "anrechnen",
+        "haertefall",
+        "nachteilsausgleich",
+        "frist verpasst",
+        "frist versaeumt",
+        "widerspruch",
+        "sonderfall",
+        "ausnahme",
+        "verbindlich",
+        "problem mit",
+        "konflikt",
+        "krankheit",
+    ]
+    return contains_any(normalized, high_touch_keywords)
+
+
 def route_intent(question: str) -> IntentRoute:
     """Decide which platform capability should answer the question."""
     normalized = normalize_question(question)
@@ -318,6 +351,17 @@ def route_intent(question: str) -> IntentRoute:
             label="Professorenmatching",
             data_sources=["Studierendenprofil", "Professorendatenbank"],
             reason="Die Frage verlangt ein Matching zwischen Interessen, Studienverlauf und Betreuungskapazitäten.",
+        )
+
+    if is_human_advisory_case(question):
+        return IntentRoute(
+            intent="human_advising",
+            label="Beratung mit Eskalation",
+            data_sources=["Studierendenprofil", HUMAN_ADVISORY_SOURCE_LABEL],
+            reason=(
+                "Das Anliegen hat individuelle Tragweite und sollte durch "
+                "Studienberatung oder Fachberatung geprüft werden."
+            ),
         )
 
     if contains_any(
@@ -931,6 +975,85 @@ def answer_advising_question(question: str, profile: dict | None) -> dict[str, o
     return None
 
 
+def answer_human_advising_question(question: str, profile: dict | None) -> dict[str, object]:
+    """Give safe first-step guidance for cases that need human judgment."""
+    normalized = normalize_question(question)
+    profile_name = profile.get("display_name") if profile else None
+    study_program = profile.get("study_program") if profile else None
+    ects_earned = profile.get("ects_earned") if profile else None
+    current_status = []
+
+    if study_program:
+        current_status.append(f"aktueller Studiengang: {study_program}")
+    if ects_earned is not None:
+        current_status.append(f"aktuell hinterlegte ECTS: {ects_earned}")
+
+    profile_context = (
+        f" In deinem Profil sehe ich {', '.join(current_status)}."
+        if current_status
+        else ""
+    )
+    greeting = f"{profile_name}, " if profile_name else ""
+
+    if contains_any(
+        normalized,
+        [
+            "studiengang wechseln",
+            "studienwechsel",
+            "fach wechseln",
+            "wechseln",
+            "abbrechen",
+            "studium abbrechen",
+            "exmatrikulation",
+            "exmatrikulieren",
+            "zweifel",
+        ],
+    ):
+        answer = (
+            f"{greeting}das ist ein sinnvolles Anliegen für eine individuelle Studienberatung, "
+            "weil ein Studiengangwechsel von Gründen, Fristen, Anerkennung bisheriger "
+            f"Leistungen und persönlichen Zielen abhängt.{profile_context}\n"
+            "Als erste Orientierung kannst du diese Punkte vorbereiten:\n"
+            "1. Warum denkst du über den Wechsel nach?\n"
+            "2. Welcher Zielstudiengang kommt für dich infrage?\n"
+            "3. Welche bestandenen Module und ECTS könnten anerkannt werden?\n"
+            "4. Welche Fristen und Zulassungsvoraussetzungen gelten für den Zielstudiengang?\n"
+            "Bitte vereinbare dafür einen Termin mit der Studienberatung oder Fachstudienberatung. "
+            "Der Bot kann hier strukturieren, aber keine verbindliche Wechselentscheidung treffen."
+        )
+    elif contains_any(normalized, ["anerkennung", "anerkennen", "anrechnen"]):
+        answer = (
+            "Bei Anerkennung oder Anrechnung von Leistungen sollte eine Fachberatung prüfen, "
+            "ob Inhalte, Umfang und Prüfungsform wirklich vergleichbar sind. "
+            "Bereite dafür Modulhandbücher, Leistungsnachweise und eine Übersicht deiner "
+            "bisherigen ECTS vor."
+        )
+    elif contains_any(
+        normalized,
+        ["haertefall", "nachteilsausgleich", "krankheit", "frist verpasst", "frist versaeumt"],
+    ):
+        answer = (
+            "Das klingt nach einem Einzelfall mit möglicher rechtlicher oder persönlicher "
+            "Tragweite. Bitte kläre das direkt mit der zuständigen Beratungsstelle oder dem "
+            "Prüfungsamt. Der Bot kann keine Härtefall-, Nachteilsausgleichs- oder "
+            "Fristentscheidung verbindlich bewerten."
+        )
+    else:
+        answer = (
+            "Das Anliegen wirkt individuell und sollte nicht allein automatisiert entschieden "
+            "werden. Ich kann dir helfen, die nächsten Fragen zu strukturieren, aber für eine "
+            "verbindliche Einschätzung solltest du die Studienberatung oder die zuständige "
+            "Fachstelle einbeziehen."
+        )
+
+    return {
+        "answer": answer,
+        "sources": build_source_list(PROFILE_SOURCE_LABEL, HUMAN_ADVISORY_SOURCE_LABEL),
+        "intent": "human_advising",
+        "confidence": 1,
+    }
+
+
 def get_official_source_for_question(question: str) -> str | None:
     normalized = normalize_question(question)
     if "bachelorarbeit" in normalized:
@@ -1271,6 +1394,9 @@ def ask_with_sources(
         )
 
     profile = get_student_profile(student_id)
+    if route.intent == "human_advising":
+        return attach_route(answer_human_advising_question(question, profile), route)
+
     if route.intent == "professor_matching":
         professor_answer = answer_professor_question(question, profile)
         return attach_route(professor_answer, route)
