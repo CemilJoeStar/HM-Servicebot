@@ -63,6 +63,13 @@ class IntentRoute:
     reason: str
 
 
+@dataclass(frozen=True)
+class AdvisingRecommendation:
+    title: str
+    rationale: str
+    priority: int
+
+
 def get_source_label(content: str) -> str:
     if "## Prüfungsabmeldung" in content or "## Bachelorarbeit" in content:
         return "Allgemeine Prüfungsordnung 2024 · verifiziert"
@@ -229,7 +236,22 @@ def route_intent(question: str) -> IntentRoute:
 
     if contains_any(
         normalized,
-        ["schwerpunkt", "passt zu mir", "empfehl", "studienberatung", "welche module", "fehl", "pflichtmodule"],
+        [
+            "schwerpunkt",
+            "passt zu mir",
+            "empfehl",
+            "studienberatung",
+            "studienplanung",
+            "welche module",
+            "fehl",
+            "pflichtmodule",
+            "naechst",
+            "prioritaet",
+            "priorisieren",
+            "belegen",
+            "weiter machen",
+            "studienverlauf",
+        ],
     ):
         return IntentRoute(
             intent="advising",
@@ -295,6 +317,211 @@ def get_profile_notes(profile: dict | None) -> dict:
 def format_module_names(modules: list[dict]) -> str:
     names = [module.get("name") for module in modules if module.get("name")]
     return ", ".join(names) if names else "keine Module hinterlegt"
+
+
+def get_completed_modules(profile: dict | None) -> list[dict]:
+    return get_profile_notes(profile).get("completed_modules") or []
+
+
+def get_open_modules(profile: dict | None) -> list[dict]:
+    return get_profile_notes(profile).get("open_modules") or []
+
+
+def get_interests(profile: dict | None) -> list[str]:
+    return get_profile_notes(profile).get("interests") or []
+
+
+def format_recommendations(recommendations: list[AdvisingRecommendation]) -> str:
+    sorted_recommendations = sorted(
+        recommendations,
+        key=lambda item: (item.priority, item.title),
+    )
+    return "\n".join(
+        f"{index}. {item.title}: {item.rationale}"
+        for index, item in enumerate(sorted_recommendations, start=1)
+    )
+
+
+def recommend_focus_area(profile: dict | None) -> AdvisingRecommendation:
+    interests = get_interests(profile)
+    completed_module_names = {
+        (module.get("name") or "").lower()
+        for module in get_completed_modules(profile)
+    }
+    interest_names = {interest.lower() for interest in interests}
+
+    data_score = 0
+    software_score = 0
+    process_score = 0
+
+    if "data analytics" in interest_names:
+        data_score += 3
+    if "business intelligence" in completed_module_names:
+        data_score += 2
+    if "statistik" in completed_module_names:
+        data_score += 1
+
+    if "software engineering" in interest_names:
+        software_score += 3
+    if "software engineering" in completed_module_names:
+        software_score += 2
+    if "programmierung 1" in completed_module_names:
+        software_score += 1
+
+    if "digitale prozesse" in interest_names:
+        process_score += 3
+    if "geschäftsprozessmanagement" in completed_module_names:
+        process_score += 2
+    if "datenbanken" in completed_module_names:
+        process_score += 1
+
+    scores = {
+        "Data Analytics": data_score,
+        "Software Engineering": software_score,
+        "Digitale Prozesse": process_score,
+    }
+    recommendation = max(scores, key=scores.get)
+    evidence = ", ".join(interests) if interests else "hinterlegte Module"
+
+    return AdvisingRecommendation(
+        title=f"Schwerpunkt {recommendation} prüfen",
+        rationale=(
+            f"Dieser Schwerpunkt passt am besten zu den hinterlegten Interessen "
+            f"und Modulindikatoren ({evidence})."
+        ),
+        priority=3,
+    )
+
+
+def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommendation]:
+    if not profile:
+        return []
+
+    ects_earned = profile.get("ects_earned") or 0
+    open_modules = get_open_modules(profile)
+    recommendations: list[AdvisingRecommendation] = []
+
+    if not profile.get("semester_fee_paid"):
+        recommendations.append(
+            AdvisingRecommendation(
+                title="Rückmeldung abschließen",
+                rationale=(
+                    "Der Semesterbeitrag ist noch nicht als bezahlt markiert; "
+                    "das blockiert die vollständige Rückmeldung."
+                ),
+                priority=1,
+            )
+        )
+
+    missing_ects = max(THESIS_REQUIRED_ECTS - ects_earned, 0)
+    if missing_ects > 0:
+        recommendations.append(
+            AdvisingRecommendation(
+                title=f"{missing_ects} ECTS für die Bachelorarbeit schließen",
+                rationale=(
+                    f"Aktuell sind {ects_earned} ECTS hinterlegt; für die Anmeldung "
+                    f"werden mindestens {THESIS_REQUIRED_ECTS} ECTS benötigt."
+                ),
+                priority=2,
+            )
+        )
+
+    for module in open_modules[:2]:
+        name = module.get("name")
+        ects = module.get("ects")
+        if not name:
+            continue
+        ects_suffix = f" ({ects} ECTS)" if ects else ""
+        recommendations.append(
+            AdvisingRecommendation(
+                title=f"{name}{ects_suffix} priorisieren",
+                rationale=(
+                    "Das Modul ist im Studienverlauf noch offen und hilft, "
+                    "den nächsten Studienfortschritt planbar zu machen."
+                ),
+                priority=2,
+            )
+        )
+
+    recommendations.append(recommend_focus_area(profile))
+    return recommendations
+
+
+def answer_advising_question(question: str, profile: dict | None) -> dict[str, object] | None:
+    """Give explainable first-step study advice from structured profile data."""
+    if not profile:
+        return None
+
+    normalized = normalize_question(question)
+    open_modules = get_open_modules(profile)
+    completed_modules = get_completed_modules(profile)
+    interests = get_interests(profile)
+    recommendations = build_study_recommendations(profile)
+
+    if contains_any(
+        normalized,
+        ["naechst", "prioritaet", "priorisieren", "studienplanung", "weiter machen", "belegen"],
+    ):
+        if not recommendations:
+            answer = "Für eine Studienberatung fehlen im Profil aktuell verwertbare Verlaufsdaten."
+        else:
+            answer = (
+                "Aus deinem Studienverlauf ergeben sich diese nächsten sinnvollen Schritte:\n"
+                f"{format_recommendations(recommendations[:4])}"
+            )
+        return {
+            "answer": answer,
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Regelbasierte Studienberatung"),
+            "intent": "advising",
+        }
+
+    if (
+        ("fehl" in normalized and ("modul" in normalized or "bachelorarbeit" in normalized))
+        or "offene module" in normalized
+        or "pflichtmodule" in normalized
+    ):
+        if "bachelorarbeit" in normalized:
+            ects_earned = profile.get("ects_earned")
+            missing_ects = max(THESIS_REQUIRED_ECTS - (ects_earned or 0), 0)
+            module_hint = (
+                f" Offene Module im Studienverlauf: {format_module_names(open_modules)}."
+                if open_modules
+                else ""
+            )
+            answer = (
+                f"Für die Bachelorarbeit fehlen dir aktuell noch {missing_ects} ECTS, "
+                f"weil {ects_earned} von mindestens {THESIS_REQUIRED_ECTS} ECTS hinterlegt sind."
+                f"{module_hint}"
+            )
+        elif open_modules:
+            answer = (
+                "In deinem Studienverlauf sind noch diese offenen Module hinterlegt: "
+                f"{format_module_names(open_modules)}."
+            )
+        else:
+            answer = "In deinem Studienverlauf sind aktuell keine offenen Module hinterlegt."
+        return {
+            "answer": answer,
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Regelbasierte Studienberatung"),
+            "intent": "advising",
+        }
+
+    if "schwerpunkt" in normalized or "passt zu mir" in normalized or "empfehl" in normalized:
+        focus = recommend_focus_area(profile)
+        completed = format_module_names(completed_modules)
+        interest_text = ", ".join(interests) if interests else "keine Interessen hinterlegt"
+        answer = (
+            f"{focus.title}. {focus.rationale} "
+            f"Grundlage sind deine Interessen ({interest_text}) und bestandene Module wie {completed}. "
+            "Das ist eine erste Orientierung, keine verbindliche Studienberatung."
+        )
+        return {
+            "answer": answer,
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Regelbasierte Studienberatung"),
+            "intent": "advising",
+        }
+
+    return None
 
 
 def get_official_source_for_question(question: str) -> str | None:
@@ -409,29 +636,23 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
             "intent": "advising",
         }
 
-    if "fehl" in normalized and "modul" in normalized or "offene module" in normalized or "pflichtmodule" in normalized:
+    if (
+        ("fehl" in normalized and "modul" in normalized)
+        or "offene module" in normalized
+        or "pflichtmodule" in normalized
+    ):
         if open_modules:
             answer = f"In deinem Studienverlauf sind noch diese offenen Module hinterlegt: {format_module_names(open_modules)}."
         else:
             answer = "In deinem Studienverlauf sind aktuell keine offenen Module hinterlegt."
         return {
             "answer": answer,
-            "sources": build_source_list(PROFILE_SOURCE_LABEL),
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Regelbasierte Studienberatung"),
             "intent": "advising",
         }
 
     if "schwerpunkt" in normalized or "passt zu mir" in normalized or "empfehl" in normalized:
-        completed = format_module_names(completed_modules)
-        interest_text = ", ".join(interests) if interests else "keine Interessen hinterlegt"
-        answer = (
-            "Für eine erste Orientierung passt ein daten- oder softwareorientierter Schwerpunkt gut zu deinem Studierendenprofil. "
-            f"Grundlage sind deine hinterlegten Interessen ({interest_text}) und bestandene Module wie {completed}."
-        )
-        return {
-            "answer": answer,
-            "sources": build_source_list(PROFILE_SOURCE_LABEL),
-            "intent": "advising",
-        }
+        return answer_advising_question(question, profile)
 
     return None
 
@@ -643,7 +864,24 @@ def ask_with_sources(
         )
 
     profile = get_student_profile(student_id)
-    if route.intent in {"profile", "advising"}:
+    if route.intent == "advising":
+        profile_answer = answer_advising_question(question, profile) or answer_profile_question(
+            question,
+            profile,
+        )
+        if profile_answer:
+            return attach_route(profile_answer, route)
+
+        return attach_route(
+            {
+                "answer": FALLBACK_ANSWER,
+                "sources": [FALLBACK_SOURCE],
+                "confidence": 0,
+            },
+            route,
+        )
+
+    if route.intent == "profile":
         profile_answer = answer_profile_question(question, profile)
         if profile_answer:
             return attach_route(profile_answer, route)

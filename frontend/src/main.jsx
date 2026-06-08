@@ -8,6 +8,7 @@ const EXAMPLE_QUESTIONS = [
   "Bis wann muss ich mich für das Sommersemester rückmelden?",
   "Kann ich meine Bachelorarbeit anmelden?",
   "Welche Module fehlen mir noch?",
+  "Was sollte ich als Nächstes machen?",
   "Welcher Schwerpunkt passt zu mir?",
 ];
 const INITIAL_MESSAGES = [
@@ -39,6 +40,29 @@ function App() {
     ? profileNotes.open_modules
     : [];
   const interests = Array.isArray(profileNotes.interests) ? profileNotes.interests : [];
+  const missingThesisEcts = studentProfile
+    ? Math.max(120 - Number(studentProfile.ects_earned || 0), 0)
+    : 0;
+  const advisingSteps = studentProfile
+    ? [
+        !studentProfile.semester_fee_paid && {
+          label: "Rückmeldung abschließen",
+          detail: "Semesterbeitrag ist noch nicht bezahlt.",
+        },
+        missingThesisEcts > 0 && {
+          label: `${missingThesisEcts} ECTS bis zur Bachelorarbeit`,
+          detail: "Voraussetzung: mindestens 120 ECTS.",
+        },
+        openModules[0] && {
+          label: `${openModules[0].name} priorisieren`,
+          detail: `${openModules[0].ects} ECTS im Studienverlauf offen.`,
+        },
+        interests[0] && {
+          label: `${interests[0]} als Schwerpunkt prüfen`,
+          detail: "Aus Interessen und bestandenen Modulen abgeleitet.",
+        },
+      ].filter(Boolean)
+    : [];
 
   useEffect(() => {
     async function loadInitialData() {
@@ -616,6 +640,27 @@ function App() {
                 {completedModules.length} Module hinterlegt
               </p>
             </div>
+          </details>
+        )}
+
+        {studentProfile && advisingSteps.length > 0 && (
+          <details className="infoCard collapsibleCard" open>
+            <summary>
+              <h2>Beratungslogik</h2>
+              <span aria-hidden="true">⌄</span>
+            </summary>
+            <p className="muted">
+              Erste Empfehlungen werden aus Profil, ECTS, offenen Modulen und
+              Interessen abgeleitet.
+            </p>
+            <ol className="advisingList">
+              {advisingSteps.map((step) => (
+                <li key={step.label}>
+                  <strong>{step.label}</strong>
+                  <small>{step.detail}</small>
+                </li>
+              ))}
+            </ol>
           </details>
         )}
 
