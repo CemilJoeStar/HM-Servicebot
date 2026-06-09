@@ -51,9 +51,73 @@ FALLBACK_ANSWER = (
 FALLBACK_SOURCE = "Keine verifizierte Quelle in der Wissensbasis gefunden."
 DEFAULT_SOURCE_LABEL = "HM Studierendenservice FAQ 2026 · verifiziert"
 PROFILE_SOURCE_LABEL = "Studierendenprofil"
+PROFESSOR_SOURCE_LABEL = "Professorenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
 HUMAN_ADVISORY_SOURCE_LABEL = "Eskalationslogik Studienberatung"
+
+THESIS_TOPIC_DIRECTIONS = {
+    "software engineering": [
+        "Qualitätssicherung und Testing in Web- oder Backend-Systemen",
+        "Architekturentscheidungen in modernen Softwareprojekten",
+        "Entwicklungsprozesse, Wartbarkeit und technische Schulden",
+    ],
+    "cloud-anwendungen": [
+        "Konzeption einer Cloud-nativen Anwendung mit nachvollziehbarer Architektur",
+        "Vergleich von Deployment- und Betriebsmodellen für Webservices",
+        "Skalierbarkeit und Monitoring in Cloud-basierten Anwendungen",
+    ],
+    "it-sicherheit": [
+        "Sicherheitsanalyse einer Webanwendung oder API",
+        "Schutz sensibler Daten in digitalen Hochschulprozessen",
+        "Bedrohungsmodell und Gegenmaßnahmen für einen Service-Prototypen",
+    ],
+    "data analytics": [
+        "Auswertung von Studienverlaufs- oder Servicedaten zur Entscheidungsunterstützung",
+        "Dashboarding und Kennzahlen für studentische Services",
+        "Datenqualität und Interpretierbarkeit in Analytics-Projekten",
+    ],
+    "business intelligence": [
+        "BI-Konzept für operative Hochschulservices",
+        "Kennzahlensystem zur Verbesserung von Beratungsprozessen",
+        "Vergleich von BI-Ansätzen für Studienverlaufsanalysen",
+    ],
+    "process mining": [
+        "Analyse und Verbesserung digitaler Verwaltungsprozesse",
+        "Process-Mining-Ansatz für Serviceanfragen im Studierendenservice",
+        "Transparenz und Engpassanalyse in administrativen Workflows",
+    ],
+    "digitale prozesse": [
+        "Digitalisierung eines studentischen Serviceprozesses",
+        "Automatisierung wiederkehrender Verwaltungsanfragen",
+        "Nutzerzentrierte Gestaltung digitaler Hochschulprozesse",
+    ],
+    "geschaeftsprozessmanagement": [
+        "Modellierung und Optimierung eines Hochschulprozesses",
+        "Vergleich manueller und automatisierter Serviceabläufe",
+        "Prozesskennzahlen für digitale Studierendenservices",
+    ],
+    "projektseminar": [
+        "Praxisnahe Konzeption eines digitalen Service-Prototyps",
+        "Evaluation eines Smart-Uni-Prototyps mit Studierenden",
+        "Anforderungsanalyse für eine studentische Beratungsplattform",
+    ],
+    "marketing": [
+        "Digitale Kommunikation studentischer Services",
+        "Akzeptanzfaktoren für KI-gestützte Hochschulangebote",
+        "Nutzervertrauen und Servicequalität in digitalen Plattformen",
+    ],
+    "digitale geschaeftsmodelle": [
+        "Plattformlogik und Wertversprechen digitaler Hochschulservices",
+        "Service-Ökosysteme im Kontext Smart University",
+        "Governance digitaler Plattformangebote",
+    ],
+    "e-commerce": [
+        "Nutzerführung und Conversion-Logik in Serviceplattformen",
+        "Personalisierte digitale Services und ethische Grenzen",
+        "Vergleich transaktionaler Plattformprozesse",
+    ],
+}
 
 
 @dataclass(frozen=True)
@@ -334,6 +398,37 @@ def is_human_advisory_case(question: str) -> bool:
     return contains_any(normalized, high_touch_keywords)
 
 
+def is_thesis_topic_question(question: str) -> bool:
+    normalized = normalize_question(question)
+    thesis_terms = [
+        "thesis",
+        "bachelorarbeit",
+        "abschlussarbeit",
+        "arbeit schreiben",
+        "schreiben wollen",
+        "themenrichtung",
+        "thema",
+        "richtung",
+    ]
+    professor_context_terms = [
+        "prof",
+        "professor",
+        "professorin",
+        "betreu",
+        "dozent",
+        "dozentin",
+        "herr",
+        "herrn",
+        "frau",
+        "bei ",
+        "beim ",
+    ]
+    return contains_any(normalized, thesis_terms) and contains_any(
+        normalized,
+        professor_context_terms,
+    )
+
+
 def route_intent(question: str) -> IntentRoute:
     """Decide which platform capability should answer the question."""
     normalized = normalize_question(question)
@@ -342,7 +437,7 @@ def route_intent(question: str) -> IntentRoute:
         ["ich", "mein", "meine", "mir", "mich", "habe ich", "kann ich", "darf ich"],
     )
 
-    if contains_any(
+    if is_thesis_topic_question(question) or contains_any(
         normalized,
         ["professor", "professorin", "prof", "betreu", "dozent", "dozentin"],
     ):
@@ -601,6 +696,116 @@ def get_knowledge_documents() -> list[dict]:
     return response.data or []
 
 
+def find_mentioned_professor(question: str, professors: list[dict]) -> dict | None:
+    normalized = normalize_text(question)
+    for professor in professors:
+        display_name = professor.get("display_name") or ""
+        normalized_name = normalize_text(display_name)
+        name_parts = [
+            part
+            for part in normalized_name.replace(".", " ").split()
+            if len(part) > 2 and part not in {"prof", "dr"}
+        ]
+        if normalized_name in normalized or any(part in normalized for part in name_parts):
+            return professor
+    return None
+
+
+def get_capacity_status_label(status: str) -> str:
+    if status == "available":
+        return "verfügbar"
+    if status == "limited":
+        return "begrenzt verfügbar"
+    return "aktuell nicht verfügbar"
+
+
+def build_thesis_topic_ideas(professor: dict, profile: dict | None) -> list[str]:
+    focus_topics = professor.get("focus_topics") or []
+    interests = {normalize_text(interest) for interest in get_interests(profile)}
+    completed_modules = get_normalized_completed_module_names(profile)
+    open_modules = get_normalized_open_module_names(profile)
+
+    ranked_topics = sorted(
+        focus_topics,
+        key=lambda topic: (
+            normalize_text(topic) not in interests,
+            normalize_text(topic) not in (completed_modules | open_modules),
+            topic,
+        ),
+    )
+    ideas = []
+    for topic in ranked_topics:
+        topic_ideas = THESIS_TOPIC_DIRECTIONS.get(normalize_text(topic), [])
+        for idea in topic_ideas:
+            if idea not in ideas:
+                ideas.append(idea)
+            if len(ideas) == 3:
+                return ideas
+
+    return [
+        f"Eine Bachelorarbeit im Bereich {topic}"
+        for topic in ranked_topics[:3]
+    ]
+
+
+def answer_professor_thesis_topic_question(
+    question: str,
+    profile: dict | None,
+) -> dict[str, object] | None:
+    professors = get_professors()
+    professor = find_mentioned_professor(question, professors)
+    if not professor:
+        recommendations = recommend_professors(profile, query=question, limit=2)
+        if not recommendations:
+            return None
+
+        return {
+            "answer": (
+                "Für eine Themenorientierung müsste zuerst klar sein, welche Betreuungsperson "
+                "du meinst. Aus deinem Profil passen aktuell besonders diese Personen:\n"
+                f"{format_professor_recommendations(recommendations)}\n"
+                "Wenn du eine Person nennst, kann ich daraus mögliche Themenrichtungen ableiten."
+            ),
+            "sources": build_source_list(
+                PROFILE_SOURCE_LABEL,
+                PROFESSOR_SOURCE_LABEL,
+                "Themenorientierung Abschlussarbeit",
+            ),
+            "intent": "professor_matching",
+        }
+
+    focus_topics = professor.get("focus_topics") or []
+    topic_text = ", ".join(focus_topics[:3]) if focus_topics else "keine Schwerpunkte hinterlegt"
+    ideas = build_thesis_topic_ideas(professor, profile)
+    formatted_ideas = "\n".join(
+        f"{index}. {idea}"
+        for index, idea in enumerate(ideas, start=1)
+    )
+    status = get_capacity_status_label(professor.get("capacity_status") or "unavailable")
+    available_slots = int(professor.get("available_slots") or 0)
+    slot_label = "freier Slot" if available_slots == 1 else "freie Slots"
+
+    answer = (
+        f"Bei {professor.get('display_name')} passen laut Professorenprofil vor allem "
+        f"die Schwerpunkte {topic_text}.\n"
+        "Als erste, unverbindliche Thesis-Richtungen könntest du prüfen:\n"
+        f"{formatted_ideas}\n"
+        f"Verfügbarkeit: {status}, {available_slots} {slot_label}. "
+        "Das sind nur Orientierungen aus dem Professorenprofil und deinem Studienprofil. "
+        "Das konkrete Thema sollte im Gespräch mit der Betreuungsperson abgestimmt werden."
+    )
+    return {
+        "answer": answer,
+        "sources": build_source_list(
+            PROFESSOR_SOURCE_LABEL,
+            PROFILE_SOURCE_LABEL,
+            "Themenorientierung Abschlussarbeit",
+        ),
+        "intent": "professor_matching",
+        "confidence": 1,
+    }
+
+
 def score_professor_for_profile(
     professor: dict,
     profile: dict | None,
@@ -736,6 +941,11 @@ def format_professor_recommendations(recommendations: list[ProfessorRecommendati
 
 
 def answer_professor_question(question: str, profile: dict | None) -> dict[str, object] | None:
+    if is_thesis_topic_question(question):
+        topic_answer = answer_professor_thesis_topic_question(question, profile)
+        if topic_answer:
+            return topic_answer
+
     recommendations = recommend_professors(profile, query=question)
     if not recommendations:
         return {

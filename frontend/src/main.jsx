@@ -942,6 +942,18 @@ function App() {
                           ))}
                         </div>
                         <small>{professor.notes}</small>
+                        <button
+                          className="topicButton"
+                          type="button"
+                          onClick={() => {
+                            setQuestion(
+                              `Welche Thesis-Richtung könnte bei ${professor.display_name} zu mir passen?`
+                            );
+                            setActiveView("chat");
+                          }}
+                        >
+                          Themenrichtung fragen
+                        </button>
                         {professor.email && professor.capacity_status !== "unavailable" && (
                           <a
                             className="contactButton"

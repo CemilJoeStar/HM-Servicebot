@@ -693,6 +693,27 @@ h2 {
   background: var(--hm-red-dark);
 }
 
+.topicButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.topicButton:hover {
+  border-color: var(--hm-red);
+  background: var(--soft-red);
+}
+
 .capacityPill {
   padding: 6px 9px;
   border-radius: 999px;
