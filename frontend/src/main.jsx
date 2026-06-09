@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const STUDENT_ID = "demo-student-001";
+const MAX_ATTACHMENTS_PER_CHAT = 5;
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const EXAMPLE_QUESTIONS = [
   "Bis wann muss ich mich für das Sommersemester rückmelden?",
   "Kann ich meine Bachelorarbeit anmelden?",
@@ -82,6 +84,13 @@ const INITIAL_MESSAGES = [
 
 function normalizeText(value) {
   return value.toLowerCase().replaceAll("ä", "ae").replaceAll("ö", "oe").replaceAll("ü", "ue");
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function getTopCourseRecommendations(studentProfile, completedModules, openModules, interests) {
@@ -207,6 +216,7 @@ function createProfessorMailto(professor, studentProfile) {
 }
 
 function App() {
+  const fileInputRef = useRef(null);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [savedChats, setSavedChats] = useState([]);
@@ -216,12 +226,17 @@ function App() {
   const [hasIndexed, setHasIndexed] = useState(true);
   const [isAsking, setIsAsking] = useState(false);
   const [isIngesting, setIsIngesting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [studentProfile, setStudentProfile] = useState(null);
   const [professors, setProfessors] = useState([]);
   const [knowledgeDocuments, setKnowledgeDocuments] = useState([]);
   const [openMenuChatId, setOpenMenuChatId] = useState(null);
   const [shouldSaveChat, setShouldSaveChat] = useState(true);
   const [activeView, setActiveView] = useState("chat");
+  const attachmentCount = messages.reduce(
+    (count, message) => count + (message.attachments?.length || 0),
+    0
+  );
 
   const profileNotes = studentProfile?.notes || {};
   const completedModules = Array.isArray(profileNotes.completed_modules)
@@ -543,6 +558,61 @@ function App() {
     }
   }
 
+  async function uploadAttachment(event) {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+    if (!selectedFile) {
+      return;
+    }
+
+    if (attachmentCount >= MAX_ATTACHMENTS_PER_CHAT) {
+      setAppStatus(`Maximal ${MAX_ATTACHMENTS_PER_CHAT} Anhänge pro Chat erlaubt.`, "error");
+      return;
+    }
+
+    if (selectedFile.size > MAX_UPLOAD_BYTES) {
+      setAppStatus("Die Datei ist zu groß. Maximal erlaubt sind 8 MB.", "error");
+      return;
+    }
+
+    setIsUploading(true);
+    setShouldSaveChat(true);
+    setAppStatus(`${selectedFile.name} wird hochgeladen...`, "loading");
+
+    const formData = new FormData();
+    formData.append("student_id", STUDENT_ID);
+    if (activeChatId) {
+      formData.append("chat_id", activeChatId);
+    }
+    formData.append("messages_json", JSON.stringify(messages));
+    formData.append("file", selectedFile);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chats/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Datei konnte nicht hochgeladen werden.");
+      }
+
+      setActiveChatId(data.chat_id);
+      setMessages((currentMessages) => [...currentMessages, data.message]);
+      await loadSavedChats();
+      const indexedHint =
+        data.attachment?.indexed_chunk_count > 0
+          ? ` ${data.attachment.indexed_chunk_count} Chunks indexiert.`
+          : " Datei im Chat gespeichert.";
+      setAppStatus(`Upload abgeschlossen.${indexedHint}`, "success");
+    } catch (error) {
+      setAppStatus(error.message, "error");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   async function askQuestion(event) {
     event.preventDefault();
 
@@ -563,7 +633,11 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/api/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: userQuestion, student_id: STUDENT_ID }),
+        body: JSON.stringify({
+          question: userQuestion,
+          student_id: STUDENT_ID,
+          chat_id: activeChatId,
+        }),
       });
       const data = await response.json();
 
@@ -732,6 +806,29 @@ function App() {
                   <div className="avatar">{message.role === "assistant" ? "HM" : "du"}</div>
                   <div className="messageBubble">
                     <p>{message.text}</p>
+                    {message.attachments?.length > 0 && (
+                      <div className="attachmentList" aria-label="Anhänge">
+                        {message.attachments.map((attachment) => (
+                          <a
+                            className="attachmentPill"
+                            href={attachment.url || undefined}
+                            key={attachment.id || attachment.file_name}
+                            rel="noreferrer"
+                            target={attachment.url ? "_blank" : undefined}
+                            title={attachment.status}
+                          >
+                            <span aria-hidden="true">↗</span>
+                            <strong>{attachment.file_name}</strong>
+                            <small>
+                              {formatFileSize(attachment.file_size || 0)}
+                              {attachment.indexed_chunk_count > 0
+                                ? ` · ${attachment.indexed_chunk_count} Chunks`
+                                : " · gespeichert"}
+                            </small>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     {message.role === "assistant" && message.routeLabel && (
                       <div className="routeMeta" title={message.routeReason || ""}>
                         Route: {message.routeLabel}
@@ -788,6 +885,23 @@ function App() {
             </label>
 
             <form className="composer" onSubmit={askQuestion}>
+              <input
+                accept=".pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp"
+                aria-label="Datei hochladen"
+                className="fileInput"
+                ref={fileInputRef}
+                type="file"
+                onChange={uploadAttachment}
+              />
+              <button
+                className="uploadButton"
+                type="button"
+                disabled={isAsking || isIngesting || isUploading || attachmentCount >= MAX_ATTACHMENTS_PER_CHAT}
+                onClick={() => fileInputRef.current?.click()}
+                title={`${attachmentCount}/${MAX_ATTACHMENTS_PER_CHAT} Anhänge in diesem Chat`}
+              >
+                {isUploading ? "..." : "+"}
+              </button>
               <textarea
                 aria-label="Studentische Frage"
                 value={question}
@@ -801,7 +915,7 @@ function App() {
                 placeholder="Frage zum Studium stellen..."
                 rows={1}
               />
-              <button className="sendButton" type="submit" disabled={isAsking || isIngesting}>
+              <button className="sendButton" type="submit" disabled={isAsking || isIngesting || isUploading}>
                 {isAsking ? "..." : "Senden"}
               </button>
             </form>

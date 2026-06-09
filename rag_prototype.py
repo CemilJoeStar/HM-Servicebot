@@ -325,6 +325,43 @@ def ingest(faq_path: Path) -> None:
     print(f"Ingested {len(documents)} chunk(s) from {faq_path.name}.")
 
 
+def index_uploaded_text(
+    content: str,
+    *,
+    source_name: str,
+    source_label: str,
+    chat_id: str,
+    attachment_id: str,
+) -> int:
+    """Index text extracted from a chat upload so later chat questions can find it."""
+    cleaned_content = content.strip()
+    if not cleaned_content:
+        return 0
+
+    base_document = Document(
+        page_content=cleaned_content,
+        metadata={
+            "source": source_name,
+            "source_label": source_label,
+            "chat_id": chat_id,
+            "attachment_id": attachment_id,
+            "origin": "chat_upload",
+        },
+    )
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=650,
+        chunk_overlap=100,
+        separators=["\n## ", "\n\n", "\n", ". ", " ", ""],
+    )
+    chunks = splitter.split_documents([base_document])
+
+    for index, chunk in enumerate(chunks):
+        chunk.metadata["chunk"] = index
+
+    build_vector_store().add_documents(chunks)
+    return len(chunks)
+
+
 def format_context(documents: Iterable[Document]) -> str:
     blocks = []
     for index, document in enumerate(documents, start=1):
@@ -1613,9 +1650,11 @@ def ask(
 def ask_with_sources(
     question: str,
     student_id: str = "demo-student-001",
+    attachment_context: str = "",
 ) -> dict[str, object]:
     route = route_intent(question)
-    if route.intent == "fallback":
+    has_attachment_context = bool(attachment_context.strip())
+    if route.intent == "fallback" and not has_attachment_context:
         return attach_route(
             {
                 "answer": FALLBACK_ANSWER,
@@ -1626,6 +1665,14 @@ def ask_with_sources(
         )
 
     profile = get_student_profile(student_id)
+    if route.intent == "fallback" and has_attachment_context:
+        route = IntentRoute(
+            intent="rag",
+            label="Chat-Anhang",
+            data_sources=["Chat-Anhänge"],
+            reason="Die Frage passt zu keinem Standard-Intent, aber im aktiven Chat liegen hochgeladene Dokumente als Kontext vor.",
+        )
+
     if route.intent == "human_advising":
         return attach_route(answer_human_advising_question(question, profile), route)
 
@@ -1666,7 +1713,7 @@ def ask_with_sources(
 
     scored_documents = retrieve_scored_documents(question)
     top_score = scored_documents[0][0] if scored_documents else 0.0
-    if top_score < MIN_RETRIEVAL_SIMILARITY:
+    if top_score < MIN_RETRIEVAL_SIMILARITY and not has_attachment_context:
         return attach_route(
             {
                 "answer": FALLBACK_ANSWER,
@@ -1682,6 +1729,20 @@ def ask_with_sources(
         )
 
     retrieved_documents = [document for _, document in scored_documents]
+    if has_attachment_context:
+        retrieved_documents.insert(
+            0,
+            Document(
+                page_content=attachment_context,
+                metadata={
+                    "source": "Chat-Anhänge",
+                    "source_label": "Chat-Anhänge · aktueller Verlauf",
+                    "origin": "chat_upload_context",
+                },
+            ),
+        )
+        top_score = max(top_score, 1.0)
+
     verified_answer = answer_verified_faq_question(question, retrieved_documents)
     if verified_answer:
         return attach_route(

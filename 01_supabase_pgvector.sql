@@ -62,6 +62,23 @@ create table if not exists chat_sessions (
     updated_at timestamptz not null default now()
 );
 
+create table if not exists chat_attachments (
+    id uuid primary key default gen_random_uuid(),
+    chat_id text not null,
+    student_id text not null references student_profiles(student_id),
+    file_name text not null,
+    storage_bucket text not null default 'chat-uploads',
+    storage_path text not null,
+    mime_type text not null,
+    file_size integer not null,
+    status text not null default 'stored',
+    extracted_text text,
+    indexed_chunk_count integer not null default 0,
+    created_at timestamptz not null default now(),
+    constraint chat_attachments_status_check
+        check (status in ('stored', 'indexed', 'unsupported', 'failed'))
+);
+
 create table if not exists knowledge_documents (
     id uuid primary key default gen_random_uuid(),
     title text not null,
@@ -92,21 +109,51 @@ create table if not exists professors (
 
 alter table public.student_profiles disable row level security;
 alter table public.chat_sessions disable row level security;
+alter table public.chat_attachments disable row level security;
 alter table public.knowledge_documents disable row level security;
 alter table public.professors disable row level security;
 grant select, insert, update, delete on public.student_profiles to anon, authenticated;
 grant select, insert, update, delete on public.chat_sessions to anon, authenticated;
+grant select, insert, update, delete on public.chat_attachments to anon, authenticated;
 grant select, insert, update, delete on public.knowledge_documents to anon, authenticated;
 grant select, insert, update, delete on public.professors to anon, authenticated;
 
 create index if not exists chat_sessions_student_updated_idx
 on chat_sessions (student_id, updated_at desc);
 
+create index if not exists chat_attachments_chat_created_idx
+on chat_attachments (chat_id, created_at desc);
+
+create index if not exists chat_attachments_student_created_idx
+on chat_attachments (student_id, created_at desc);
+
 create index if not exists knowledge_documents_status_idx
 on knowledge_documents (status, last_indexed_at desc);
 
 create index if not exists professors_capacity_status_idx
 on professors (capacity_status, available_slots desc);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+    'chat-uploads',
+    'chat-uploads',
+    false,
+    8388608,
+    array[
+        'application/pdf',
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'image/png',
+        'image/jpeg',
+        'image/webp'
+    ]
+)
+on conflict (id) do update
+set
+    public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
 
 insert into public.student_profiles (
     student_id,

@@ -836,6 +836,59 @@ h2 {
   white-space: pre-wrap;
 }
 
+.attachmentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.attachmentPill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: center;
+  max-width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  text-decoration: none;
+}
+
+.message.user .attachmentPill {
+  border-color: rgba(255, 255, 255, 0.38);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.attachmentPill span {
+  grid-row: span 2;
+  font-weight: 900;
+}
+
+.attachmentPill strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentPill small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message.user .attachmentPill small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .routeMeta {
   display: inline-flex;
   width: fit-content;
@@ -983,7 +1036,7 @@ h2 {
 
 .composer {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   gap: 10px;
   align-items: end;
   padding: 12px;
@@ -991,6 +1044,34 @@ h2 {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 14px 30px rgba(22, 22, 22, 0.1);
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadButton {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--hm-red-dark);
+  background: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.uploadButton:hover:not(:disabled) {
+  border-color: var(--hm-red);
+  background: var(--soft-red);
+}
+
+.uploadButton:disabled {
+  color: #b7bbc3;
+  cursor: not-allowed;
 }
 
 .composer textarea {
