@@ -991,9 +991,9 @@ function App() {
               <p>Module werden aus Interessen, Studienverlauf und ECTS-Voraussetzungen gerankt.</p>
             </header>
             <div className="recommendationBoard">
-              {recommendedCourses.map((course) => (
+              {recommendedCourses.map((course, index) => (
                 <article key={course.name}>
-                  <span className="scoreBadge">{course.score}</span>
+                  <span className="rankBadge">{index + 1}. Wahl</span>
                   <div>
                     <h3>{course.name}</h3>
                     <p>{course.ects} ECTS · {course.focus}</p>

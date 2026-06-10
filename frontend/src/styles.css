@@ -736,14 +736,17 @@ h2 {
   background: #eeeeee;
 }
 
-.scoreBadge {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
+.rankBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   color: #ffffff;
   background: var(--hm-red);
+  font-size: 0.78rem;
   font-weight: 900;
 }
 
