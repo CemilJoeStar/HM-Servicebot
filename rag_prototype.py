@@ -502,6 +502,25 @@ def normalize_text(value: str) -> str:
     return normalize_question(value).strip()
 
 
+def normalize_matching_text(value: str) -> str:
+    """Normalize common student wording before matching structured topics."""
+    normalized = normalize_text(value)
+    replacements = {
+        "software entwicklung engineering": "software engineering",
+        "softwareentwicklung": "software engineering",
+        "software entwicklung": "software engineering",
+        "software-engineering": "software engineering",
+        "ki chatbot": "chatbots",
+        "ki-chatbot": "chatbots",
+        "ki chatbots": "chatbots",
+        "ki-chatbots": "chatbots",
+        "kuenstliche intelligenz": "ki-systeme",
+    }
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
 def is_human_advisory_case(question: str) -> bool:
     """Detect questions where the bot should support, but not decide alone."""
     normalized = normalize_question(question)
@@ -545,6 +564,7 @@ def is_thesis_topic_question(question: str) -> bool:
         "themenrichtung",
         "thema",
         "richtung",
+        "bereich",
     ]
     professor_context_terms = [
         "prof",
@@ -558,6 +578,10 @@ def is_thesis_topic_question(question: str) -> bool:
         "frau",
         "bei ",
         "beim ",
+        "jemand",
+        "person",
+        "betreuungsperson",
+        "passend",
     ]
     return contains_any(normalized, thesis_terms) and contains_any(
         normalized,
@@ -720,7 +744,7 @@ def get_interests(profile: dict | None) -> list[str]:
 
 def get_normalized_completed_module_names(profile: dict | None) -> set[str]:
     return {
-        normalize_text(module.get("name") or "")
+        normalize_matching_text(module.get("name") or "")
         for module in get_completed_modules(profile)
         if module.get("name")
     }
@@ -728,7 +752,7 @@ def get_normalized_completed_module_names(profile: dict | None) -> set[str]:
 
 def get_normalized_open_module_names(profile: dict | None) -> set[str]:
     return {
-        normalize_text(module.get("name") or "")
+        normalize_matching_text(module.get("name") or "")
         for module in get_open_modules(profile)
         if module.get("name")
     }
@@ -917,10 +941,11 @@ def answer_professor_thesis_topic_question(
 
         return {
             "answer": (
-                "Für eine Themenorientierung müsste zuerst klar sein, welche Betreuungsperson "
-                "du meinst. Aus deinem Profil passen aktuell besonders diese Personen:\n"
+                "Für deine Bachelorarbeit passen aus deinem Profil und dem genannten Themenbereich "
+                "aktuell besonders diese Betreuungspersonen:\n"
                 f"{format_professor_recommendations(recommendations)}\n"
-                "Wenn du eine Person nennst, kann ich daraus mögliche Themenrichtungen ableiten."
+                "Die Empfehlung ist eine erste Orientierung. Das konkrete Thema und die Betreuung "
+                "solltest du anschließend direkt mit der Person abstimmen."
             ),
             "sources": build_source_list(
                 PROFILE_SOURCE_LABEL,
@@ -971,22 +996,22 @@ def score_professor_for_profile(
         return None
 
     focus_topics = professor.get("focus_topics") or []
-    normalized_focus_topics = {normalize_text(topic) for topic in focus_topics}
+    normalized_focus_topics = {normalize_matching_text(topic) for topic in focus_topics}
     focus_topics_by_signal = {
-        normalize_text(topic): topic
+        normalize_matching_text(topic): topic
         for topic in focus_topics
     }
-    normalized_query = normalize_text(query)
+    normalized_query = normalize_matching_text(query)
     interests = get_interests(profile)
-    interest_signals = {normalize_text(interest) for interest in interests}
+    interest_signals = {normalize_matching_text(interest) for interest in interests}
     interests_by_signal = {
-        normalize_text(interest): interest
+        normalize_matching_text(interest): interest
         for interest in interests
     }
     completed_signals = get_normalized_completed_module_names(profile)
     open_signals = get_normalized_open_module_names(profile)
     module_names_by_signal = {
-        normalize_text(module.get("name") or ""): module.get("name")
+        normalize_matching_text(module.get("name") or ""): module.get("name")
         for module in [*get_completed_modules(profile), *get_open_modules(profile)]
         if module.get("name")
     }
@@ -1000,7 +1025,7 @@ def score_professor_for_profile(
     query_matches = [
         topic
         for topic in focus_topics
-        if normalize_text(topic) in normalized_query
+        if normalize_matching_text(topic) in normalized_query
     ]
     if query_matches:
         score += 10 * len(query_matches)
