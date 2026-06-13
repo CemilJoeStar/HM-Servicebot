@@ -242,6 +242,51 @@ values
         '2026',
         6,
         now()
+    ),
+    (
+        'Einschreibeordnung 2026',
+        'Einschreibeordnung 2026 · verifiziert',
+        'policy',
+        'active',
+        '2026',
+        1,
+        now()
+    ),
+    (
+        'Campusportal Stundenplanhinweise 2026',
+        'Campusportal Stundenplanhinweise 2026 · verifiziert',
+        'service_notice',
+        'active',
+        '2026',
+        1,
+        now()
+    ),
+    (
+        'HM Online-Serviceportal 2026',
+        'HM Online-Serviceportal 2026 · verifiziert',
+        'service_notice',
+        'active',
+        '2026',
+        1,
+        now()
+    ),
+    (
+        'Praxissemesterordnung Wirtschaftsinformatik 2026',
+        'Praxissemesterordnung Wirtschaftsinformatik 2026 · verifiziert',
+        'policy',
+        'active',
+        '2026',
+        1,
+        now()
+    ),
+    (
+        'Studienberatungsleitfaden 2026',
+        'Studienberatungsleitfaden 2026 · verifiziert',
+        'advisory_guideline',
+        'active',
+        '2026',
+        1,
+        now()
     )
 on conflict (source_label) do update
 set
@@ -307,6 +352,50 @@ values
         'Pasing, Raum P 2.04',
         'tobias.reiter@hm.example',
         'Für dieses Semester keine freien Betreuungskapazitäten.'
+    ),
+    (
+        'Prof. Dr. Laura Schneider',
+        'Prof. Dr.',
+        'Wirtschaftsinformatik',
+        array['KI-Systeme', 'Natural Language Processing', 'Chatbots'],
+        'available',
+        2,
+        'Lothstraße, Raum R 4.11',
+        'laura.schneider@hm.example',
+        'Betreut KI-gestützte Service- und NLP-Projekte.'
+    ),
+    (
+        'Prof. Dr. David Nguyen',
+        'Prof. Dr.',
+        'Informatik',
+        array['Cybersecurity', 'Datenschutz', 'Cloud Security'],
+        'limited',
+        1,
+        'Lothstraße, Raum R 3.21',
+        'david.nguyen@hm.example',
+        'Fokus auf Sicherheits- und Datenschutzfragen digitaler Plattformen.'
+    ),
+    (
+        'Prof. Dr. Miriam Hoffmann',
+        'Prof. Dr.',
+        'Wirtschaftsinformatik',
+        array['ERP-Systeme', 'Prozessautomatisierung', 'Digitale Verwaltung'],
+        'available',
+        2,
+        'Pasing, Raum P 1.31',
+        'miriam.hoffmann@hm.example',
+        'Betreut Arbeiten zur Digitalisierung administrativer Prozesse.'
+    ),
+    (
+        'Prof. Dr. Jonas Weber',
+        'Prof. Dr.',
+        'Wirtschaft',
+        array['Innovation Management', 'Startups', 'Digitale Geschäftsmodelle'],
+        'limited',
+        1,
+        'Pasing, Raum P 2.18',
+        'jonas.weber@hm.example',
+        'Begleitet Themen zu Innovation, Transfer und digitalen Geschäftsmodellen.'
     )
 on conflict (display_name) do update
 set

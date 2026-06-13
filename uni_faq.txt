@@ -1,4 +1,4 @@
-# Universität Musterstadt - Fiktive FAQ für den Service-Bot
+# Hochschule München - Fiktive FAQ für MIA
 
 Dokument: uni_faq.txt
 Stand: Sommersemester 2026
@@ -26,3 +26,31 @@ Der Studierendenausweis kann nach erfolgreicher Rückmeldung an den
 Validierungsstationen auf dem Campus aktualisiert werden. Bei Verlust wird ein
 Ersatzausweis gegen eine Gebühr von 15 Euro im Studierendensekretariat
 ausgestellt.
+
+## Einschreibung
+Die Einschreibung erfolgt nach einer Zulassung online über das Bewerbungsportal.
+Alle geforderten Unterlagen müssen innerhalb der angegebenen Frist vollständig
+hochgeladen werden. Fehlende oder unvollständige Unterlagen können dazu führen,
+dass sich die Immatrikulation verzögert oder nicht abgeschlossen werden kann.
+
+## Stundenplan
+Der Stundenplan wird im zentralen Campusportal veröffentlicht. Änderungen sind
+bis zum Beginn der Vorlesungszeit möglich. Verbindlich ist immer die zuletzt im
+Campusportal veröffentlichte Version.
+
+## Formulare und Anträge
+Formulare für Beurlaubung, Prüfungsangelegenheiten und Adressänderungen werden
+im Online-Serviceportal bereitgestellt. Unterschriebene Anträge sollen als PDF
+hochgeladen oder beim zuständigen Servicebereich eingereicht werden.
+
+## Praxissemester und Praktikum
+Das Praxissemester kann angemeldet werden, wenn die in der Prüfungsordnung
+vorgesehenen Voraussetzungen erfüllt sind. Die Praktikumsstelle muss vor Beginn
+bestätigt werden. Der Career Service unterstützt Studierende bei der Suche nach
+geeigneten Praktikumsstellen.
+
+## Studiengangwechsel
+Ein Studiengangwechsel erfordert eine individuelle Prüfung der Zulassung,
+Fristen und möglichen Anerkennung bereits erbrachter Leistungen. Studierende
+sollen dafür frühzeitig einen Beratungstermin bei der Studienberatung oder
+Fachberatung vereinbaren.

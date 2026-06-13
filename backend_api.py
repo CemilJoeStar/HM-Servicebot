@@ -32,7 +32,7 @@ from rag_prototype import (
 )
 
 
-app = FastAPI(title="Uni Service-Bot API")
+app = FastAPI(title="MIA Studierendenservice API")
 CHAT_RETENTION_DAYS = int(os.getenv("CHAT_RETENTION_DAYS", "30"))
 MAX_VISIBLE_CHATS = int(os.getenv("MAX_VISIBLE_CHATS", "20"))
 CHAT_UPLOAD_BUCKET = os.getenv("CHAT_UPLOAD_BUCKET", "chat-uploads")

@@ -78,7 +78,7 @@ const FAILED_MODULES = new Set(["wirtschaftsmathematik ii"]);
 const INITIAL_MESSAGES = [
   {
     role: "assistant",
-    text: "Hallo, ich helfe dir bei Fragen zu Rückmeldung, Bachelorarbeit, Prüfungsabmeldung und Studierendenausweis.",
+    text: "Hallo, ich bin MIA. Ich helfe dir bei Fragen zu Rückmeldung, Bachelorarbeit, Prüfungsabmeldung, Studierendenausweis und individueller Orientierung.",
   },
 ];
 
@@ -729,7 +729,7 @@ function App() {
             </span>
           </div>
           <div className="productTitle">
-            <p className="eyebrow">Service-Bot</p>
+            <p className="eyebrow">MIA</p>
             <h1>Studierendenservice</h1>
           </div>
         </div>
@@ -1186,7 +1186,7 @@ function App() {
         >
           <span>
             <strong>Zurück zum Chat</strong>
-            <small>Servicebot öffnen</small>
+            <small>MIA öffnen</small>
           </span>
           <b aria-hidden="true">›</b>
         </button>

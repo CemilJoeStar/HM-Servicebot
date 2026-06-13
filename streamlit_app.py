@@ -18,11 +18,11 @@ DEFAULT_FAQ_PATH = SCRIPT_DIR / "uni_faq.txt"
 
 
 st.set_page_config(
-    page_title="Uni Service-Bot",
+    page_title="MIA Studierendenservice",
     layout="centered",
 )
 
-st.title("Uni Service-Bot")
+st.title("MIA Studierendenservice")
 st.caption("Minimaler RAG-Prototyp mit Gemini, LangChain und Supabase pgvector")
 
 with st.sidebar:

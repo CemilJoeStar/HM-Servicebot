@@ -57,6 +57,21 @@ THESIS_REQUIRED_ECTS = 120
 HUMAN_ADVISORY_SOURCE_LABEL = "Eskalationslogik Studienberatung"
 
 THESIS_TOPIC_DIRECTIONS = {
+    "ki-systeme": [
+        "Konzeption eines KI-gestützten Assistenzsystems für Hochschulservices",
+        "Evaluierung von LLM-basierten Workflows in administrativen Prozessen",
+        "Transparenz und Grenzen KI-gestützter Entscheidungsunterstützung",
+    ],
+    "natural language processing": [
+        "NLP-basierte Klassifikation studentischer Serviceanfragen",
+        "Auswertung freier Texte in Hochschulprozessen",
+        "Vergleich von Retrieval- und Klassifikationsansätzen für Beratungsfälle",
+    ],
+    "chatbots": [
+        "Konzeption eines kontextgebundenen Chatbots für Studierendenservices",
+        "Akzeptanzfaktoren von KI-Chatbots im Hochschulkontext",
+        "Eskalationslogik für hybride Chatbot- und Beratungsprozesse",
+    ],
     "software engineering": [
         "Qualitätssicherung und Testing in Web- oder Backend-Systemen",
         "Architekturentscheidungen in modernen Softwareprojekten",
@@ -71,6 +86,21 @@ THESIS_TOPIC_DIRECTIONS = {
         "Sicherheitsanalyse einer Webanwendung oder API",
         "Schutz sensibler Daten in digitalen Hochschulprozessen",
         "Bedrohungsmodell und Gegenmaßnahmen für einen Service-Prototypen",
+    ],
+    "cybersecurity": [
+        "Bedrohungsmodell für studentische Self-Service-Plattformen",
+        "Sicherheitsanforderungen an KI-gestützte Hochschulservices",
+        "Vergleich technischer Schutzmaßnahmen für sensible Studiendaten",
+    ],
+    "datenschutz": [
+        "Datenminimierung in personalisierten Hochschulplattformen",
+        "DSGVO-konforme Gestaltung KI-gestützter Beratungsprozesse",
+        "Privacy-by-Design für Smart-University-Anwendungen",
+    ],
+    "cloud security": [
+        "Sicherheitskonzept für Cloud-basierte Hochschulservices",
+        "Rollen- und Zugriffskonzepte für Cloud-Anwendungen",
+        "Risikoanalyse einer Cloud-nativen Serviceplattform",
     ],
     "data analytics": [
         "Auswertung von Studienverlaufs- oder Servicedaten zur Entscheidungsunterstützung",
@@ -102,6 +132,21 @@ THESIS_TOPIC_DIRECTIONS = {
         "Evaluation eines Smart-Uni-Prototyps mit Studierenden",
         "Anforderungsanalyse für eine studentische Beratungsplattform",
     ],
+    "erp-systeme": [
+        "Integration studentischer Verwaltungsdaten in eine Serviceplattform",
+        "ERP-gestützte Prozessoptimierung im Hochschulkontext",
+        "Schnittstellenkonzept zwischen Campusmanagement und Beratungssystemen",
+    ],
+    "prozessautomatisierung": [
+        "Automatisierung wiederkehrender Serviceanfragen",
+        "Workflow-Design für digitale Hochschulverwaltung",
+        "Vergleich regelbasierter und KI-gestützter Prozessautomatisierung",
+    ],
+    "digitale verwaltung": [
+        "Nutzerzentrierte Gestaltung digitaler Verwaltungsleistungen",
+        "Self-Service-Prozesse für Studierende im Smart-University-Kontext",
+        "Digitalisierung von Formular- und Antragsprozessen",
+    ],
     "marketing": [
         "Digitale Kommunikation studentischer Services",
         "Akzeptanzfaktoren für KI-gestützte Hochschulangebote",
@@ -111,6 +156,16 @@ THESIS_TOPIC_DIRECTIONS = {
         "Plattformlogik und Wertversprechen digitaler Hochschulservices",
         "Service-Ökosysteme im Kontext Smart University",
         "Governance digitaler Plattformangebote",
+    ],
+    "innovation management": [
+        "Einführung digitaler Innovationen in Hochschulorganisationen",
+        "Akzeptanz und Adoption von Smart-University-Services",
+        "Roadmap für die Skalierung eines KI-Serviceprototyps",
+    ],
+    "startups": [
+        "Transferpotenziale studentischer Serviceplattformen",
+        "Lean-Startup-Ansatz für digitale Hochschulservices",
+        "Validierung eines Plattformkonzepts im Hochschulumfeld",
     ],
     "e-commerce": [
         "Nutzerführung und Conversion-Logik in Serviceplattformen",
@@ -216,6 +271,21 @@ def get_source_label(content: str) -> str:
     if "## Studierendenausweis" in content:
         return "HM Studierendenservice FAQ 2026 · verifiziert"
 
+    if "## Einschreibung" in content:
+        return "Einschreibeordnung 2026 · verifiziert"
+
+    if "## Stundenplan" in content:
+        return "Campusportal Stundenplanhinweise 2026 · verifiziert"
+
+    if "## Formulare und Anträge" in content:
+        return "HM Online-Serviceportal 2026 · verifiziert"
+
+    if "## Praxissemester und Praktikum" in content:
+        return "Praxissemesterordnung Wirtschaftsinformatik 2026 · verifiziert"
+
+    if "## Studiengangwechsel" in content:
+        return "Studienberatungsleitfaden 2026 · verifiziert"
+
     return DEFAULT_SOURCE_LABEL
 
 
@@ -288,22 +358,51 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
     return dot_product / (left_norm * right_norm)
 
 
+def split_markdown_sections(content: str) -> list[str]:
+    """Keep FAQ sections together so retrieved sources stay human-readable."""
+    lines = content.splitlines()
+    preamble = []
+    sections = []
+    current_section = []
+
+    for line in lines:
+        if line.startswith("## "):
+            if current_section:
+                sections.append("\n".join(current_section).strip())
+            current_section = [line]
+            continue
+
+        if current_section:
+            current_section.append(line)
+        else:
+            preamble.append(line)
+
+    if current_section:
+        sections.append("\n".join(current_section).strip())
+
+    header = "\n".join(preamble).strip()
+    if header and sections:
+        return [f"{header}\n\n{section}" for section in sections]
+    if sections:
+        return sections
+    return [content]
+
+
 def load_faq_documents(path: Path) -> list[Document]:
     if not path.exists():
         raise FileNotFoundError(f"FAQ file not found: {path}")
 
     content = path.read_text(encoding="utf-8")
-    base_document = Document(
-        page_content=content,
-        metadata={"source": path.name},
-    )
-
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=650,
-        chunk_overlap=100,
-        separators=["\n## ", "\n\n", "\n", ". ", " ", ""],
+        chunk_overlap=60,
+        separators=["\n\n", "\n", ". ", " ", ""],
     )
-    chunks = splitter.split_documents([base_document])
+    section_documents = [
+        Document(page_content=section, metadata={"source": path.name})
+        for section in split_markdown_sections(content)
+    ]
+    chunks = splitter.split_documents(section_documents)
 
     for index, chunk in enumerate(chunks):
         chunk.metadata["chunk"] = index
@@ -549,7 +648,27 @@ def route_intent(question: str) -> IntentRoute:
 
     if contains_any(
         normalized,
-        ["rueckmeld", "pruefung", "pruefungsabmeldung", "studierendenausweis", "frist", "gebuehr", "bachelorarbeit"],
+        [
+            "rueckmeld",
+            "pruefung",
+            "pruefungsabmeldung",
+            "studierendenausweis",
+            "frist",
+            "gebuehr",
+            "bachelorarbeit",
+            "einschreibung",
+            "einschreiben",
+            "immatrikulation",
+            "bewerbungsportal",
+            "stundenplan",
+            "formulare",
+            "formular",
+            "antrag",
+            "antraege",
+            "praxissemester",
+            "praktikum",
+            "career service",
+        ],
     ):
         return IntentRoute(
             intent="rag",
@@ -884,7 +1003,7 @@ def score_professor_for_profile(
         if normalize_text(topic) in normalized_query
     ]
     if query_matches:
-        score += 6 * len(query_matches)
+        score += 10 * len(query_matches)
         reasons.append(f"passt zum angefragten Thema {', '.join(query_matches)}")
 
     interest_matches = sorted(normalized_focus_topics & interest_signals)
@@ -1502,6 +1621,41 @@ def answer_verified_faq_question(
     if "studierendenausweis" in normalized and ("aktualis" in normalized or "validier" in normalized):
         return {
             "answer": "Der Studierendenausweis kann nach erfolgreicher Rückmeldung an den Validierungsstationen auf dem Campus aktualisiert werden.",
+            "sources": source,
+            "intent": "rag",
+        }
+
+    if contains_any(normalized, ["einschreibung", "einschreiben", "immatrikulation"]):
+        return {
+            "answer": "Die Einschreibung erfolgt nach einer Zulassung online über das Bewerbungsportal. Alle geforderten Unterlagen müssen innerhalb der angegebenen Frist vollständig hochgeladen werden.",
+            "sources": source,
+            "intent": "rag",
+        }
+
+    if "stundenplan" in normalized:
+        return {
+            "answer": "Der Stundenplan wird im zentralen Campusportal veröffentlicht. Änderungen sind bis zum Beginn der Vorlesungszeit möglich; verbindlich ist die zuletzt veröffentlichte Version.",
+            "sources": source,
+            "intent": "rag",
+        }
+
+    if contains_any(normalized, ["formular", "formulare", "antrag", "antraege"]):
+        return {
+            "answer": "Formulare für Beurlaubung, Prüfungsangelegenheiten und Adressänderungen werden im Online-Serviceportal bereitgestellt. Unterschriebene Anträge sollen als PDF hochgeladen oder beim zuständigen Servicebereich eingereicht werden.",
+            "sources": source,
+            "intent": "rag",
+        }
+
+    if contains_any(normalized, ["praxissemester", "praktikum", "career service"]):
+        return {
+            "answer": "Das Praxissemester kann angemeldet werden, wenn die in der Prüfungsordnung vorgesehenen Voraussetzungen erfüllt sind. Die Praktikumsstelle muss vor Beginn bestätigt werden; der Career Service unterstützt bei der Suche.",
+            "sources": source,
+            "intent": "rag",
+        }
+
+    if contains_any(normalized, ["studiengangwechsel", "studiengang wechseln"]):
+        return {
+            "answer": "Ein Studiengangwechsel erfordert eine individuelle Prüfung der Zulassung, Fristen und möglichen Anerkennung bereits erbrachter Leistungen. Dafür sollte frühzeitig ein Beratungstermin vereinbart werden.",
             "sources": source,
             "intent": "rag",
         }
