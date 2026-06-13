@@ -54,3 +54,10 @@ Ein Studiengangwechsel erfordert eine individuelle Prüfung der Zulassung,
 Fristen und möglichen Anerkennung bereits erbrachter Leistungen. Studierende
 sollen dafür frühzeitig einen Beratungstermin bei der Studienberatung oder
 Fachberatung vereinbaren.
+
+## Kontakt Studierendensekretariat
+Das Studierendensekretariat kann für allgemeine Anliegen über das
+Online-Serviceportal kontaktiert werden. Für dringende oder persönliche Anliegen
+werden Sprechstunden im Campusportal angekündigt. Studierende sollen bei einer
+Anfrage Matrikelnummer, Studiengang und eine kurze Beschreibung des Anliegens
+angeben.

@@ -286,6 +286,9 @@ def get_source_label(content: str) -> str:
     if "## Studiengangwechsel" in content:
         return "Studienberatungsleitfaden 2026 · verifiziert"
 
+    if "## Kontakt Studierendensekretariat" in content:
+        return "Kontaktweg Studierendensekretariat 2026 · verifiziert"
+
     return DEFAULT_SOURCE_LABEL
 
 
@@ -589,6 +592,40 @@ def is_thesis_topic_question(question: str) -> bool:
     )
 
 
+def is_professor_contact_question(question: str) -> bool:
+    normalized = normalize_question(question)
+    contact_terms = [
+        "kontakt",
+        "kontaktieren",
+        "mail",
+        "email",
+        "e-mail",
+        "anschreiben",
+        "erreichen",
+    ]
+    professor_reference_terms = [
+        "sie",
+        "ihn",
+        "prof",
+        "professor",
+        "professorin",
+        "betreuungsperson",
+        "person",
+        "jemand",
+    ]
+    non_professor_contacts = [
+        "sekretariat",
+        "studierendensekretariat",
+        "pruefungsamt",
+        "studienberatung",
+    ]
+    return (
+        contains_any(normalized, contact_terms)
+        and contains_any(normalized, professor_reference_terms)
+        and not contains_any(normalized, non_professor_contacts)
+    )
+
+
 def route_intent(question: str) -> IntentRoute:
     """Decide which platform capability should answer the question."""
     normalized = normalize_question(question)
@@ -597,7 +634,7 @@ def route_intent(question: str) -> IntentRoute:
         ["ich", "mein", "meine", "mir", "mich", "habe ich", "kann ich", "darf ich"],
     )
 
-    if is_thesis_topic_question(question) or contains_any(
+    if is_professor_contact_question(question) or is_thesis_topic_question(question) or contains_any(
         normalized,
         ["professor", "professorin", "prof", "betreu", "dozent", "dozentin"],
     ):
@@ -692,6 +729,11 @@ def route_intent(question: str) -> IntentRoute:
             "praxissemester",
             "praktikum",
             "career service",
+            "kontakt",
+            "kontaktieren",
+            "sekretariat",
+            "studierendensekretariat",
+            "sprechstunde",
         ],
     ):
         return IntentRoute(
@@ -877,10 +919,10 @@ def get_knowledge_documents() -> list[dict]:
 
 
 def find_mentioned_professor(question: str, professors: list[dict]) -> dict | None:
-    normalized = normalize_text(question)
+    normalized = normalize_matching_text(question)
     for professor in professors:
         display_name = professor.get("display_name") or ""
-        normalized_name = normalize_text(display_name)
+        normalized_name = normalize_matching_text(display_name)
         name_parts = [
             part
             for part in normalized_name.replace(".", " ").split()
@@ -889,6 +931,34 @@ def find_mentioned_professor(question: str, professors: list[dict]) -> dict | No
         if normalized_name in normalized or any(part in normalized for part in name_parts):
             return professor
     return None
+
+
+def infer_recent_professors_from_messages(
+    messages: list[dict] | None,
+    professors: list[dict],
+    limit: int = 2,
+) -> list[dict]:
+    if not messages:
+        return []
+
+    for message in reversed(messages):
+        if message.get("role") != "assistant":
+            continue
+
+        text = message.get("text") or ""
+        normalized_text = normalize_matching_text(text)
+        matches = []
+        for professor in professors:
+            display_name = professor.get("display_name") or ""
+            normalized_name = normalize_matching_text(display_name)
+            if normalized_name in normalized_text:
+                matches.append((normalized_text.find(normalized_name), professor))
+
+        if matches:
+            matches.sort(key=lambda item: item[0])
+            return [professor for _, professor in matches[:limit]]
+
+    return []
 
 
 def get_capacity_status_label(status: str) -> str:
@@ -931,6 +1001,7 @@ def build_thesis_topic_ideas(professor: dict, profile: dict | None) -> list[str]
 def answer_professor_thesis_topic_question(
     question: str,
     profile: dict | None,
+    conversation_messages: list[dict] | None = None,
 ) -> dict[str, object] | None:
     professors = get_professors()
     professor = find_mentioned_professor(question, professors)
@@ -985,6 +1056,73 @@ def answer_professor_thesis_topic_question(
         "intent": "professor_matching",
         "confidence": 1,
     }
+
+
+def answer_professor_contact_question(
+    question: str,
+    profile: dict | None,
+    conversation_messages: list[dict] | None = None,
+) -> dict[str, object] | None:
+    if not is_professor_contact_question(question):
+        return None
+
+    professors = get_professors()
+    mentioned_professor = find_mentioned_professor(question, professors)
+    contact_professors = (
+        [mentioned_professor]
+        if mentioned_professor
+        else infer_recent_professors_from_messages(conversation_messages, professors)
+    )
+    if not contact_professors:
+        contact_professors = [
+            recommendation_to_professor(recommendation, professors)
+            for recommendation in recommend_professors(profile, query=question, limit=2)
+        ]
+        contact_professors = [professor for professor in contact_professors if professor]
+
+    if not contact_professors:
+        return {
+            "answer": (
+                "Ich kann dir Kontaktinformationen nennen, wenn du eine konkrete "
+                "Betreuungsperson oder einen Themenbereich nennst."
+            ),
+            "sources": build_source_list(PROFESSOR_SOURCE_LABEL),
+            "intent": "professor_matching",
+        }
+
+    lines = []
+    for index, professor in enumerate(contact_professors, start=1):
+        email = professor.get("email") or "keine E-Mail hinterlegt"
+        status = get_capacity_status_label(professor.get("capacity_status") or "unavailable")
+        slots = int(professor.get("available_slots") or 0)
+        slot_label = "freier Slot" if slots == 1 else "freie Slots"
+        lines.append(
+            f"{index}. {professor.get('display_name')}: {email} "
+            f"({status}, {slots} {slot_label})"
+        )
+
+    answer = (
+        "Du kannst die passende Betreuungsperson per E-Mail kontaktieren:\n"
+        f"{chr(10).join(lines)}\n"
+        "Für die erste Nachricht reicht kurz: wer du bist, welches Thema dich interessiert, "
+        "welche Module oder Vorkenntnisse dazu passen und ob aktuell Betreuungskapazität besteht."
+    )
+    return {
+        "answer": answer,
+        "sources": build_source_list(PROFESSOR_SOURCE_LABEL),
+        "intent": "professor_matching",
+        "confidence": 1,
+    }
+
+
+def recommendation_to_professor(
+    recommendation: ProfessorRecommendation,
+    professors: list[dict],
+) -> dict | None:
+    for professor in professors:
+        if professor.get("display_name") == recommendation.display_name:
+            return professor
+    return None
 
 
 def score_professor_for_profile(
@@ -1121,9 +1259,25 @@ def format_professor_recommendations(recommendations: list[ProfessorRecommendati
     return "\n".join(lines)
 
 
-def answer_professor_question(question: str, profile: dict | None) -> dict[str, object] | None:
+def answer_professor_question(
+    question: str,
+    profile: dict | None,
+    conversation_messages: list[dict] | None = None,
+) -> dict[str, object] | None:
+    contact_answer = answer_professor_contact_question(
+        question,
+        profile,
+        conversation_messages,
+    )
+    if contact_answer:
+        return contact_answer
+
     if is_thesis_topic_question(question):
-        topic_answer = answer_professor_thesis_topic_question(question, profile)
+        topic_answer = answer_professor_thesis_topic_question(
+            question,
+            profile,
+            conversation_messages,
+        )
         if topic_answer:
             return topic_answer
 
@@ -1685,6 +1839,13 @@ def answer_verified_faq_question(
             "intent": "rag",
         }
 
+    if contains_any(normalized, ["sekretariat", "studierendensekretariat", "kontakt", "kontaktieren", "sprechstunde"]):
+        return {
+            "answer": "Das Studierendensekretariat kann für allgemeine Anliegen über das Online-Serviceportal kontaktiert werden. Für dringende oder persönliche Anliegen werden Sprechstunden im Campusportal angekündigt.",
+            "sources": source,
+            "intent": "rag",
+        }
+
     return None
 
 
@@ -1830,6 +1991,7 @@ def ask_with_sources(
     question: str,
     student_id: str = "demo-student-001",
     attachment_context: str = "",
+    conversation_messages: list[dict] | None = None,
 ) -> dict[str, object]:
     route = route_intent(question)
     has_attachment_context = bool(attachment_context.strip())
@@ -1856,7 +2018,11 @@ def ask_with_sources(
         return attach_route(answer_human_advising_question(question, profile), route)
 
     if route.intent == "professor_matching":
-        professor_answer = answer_professor_question(question, profile)
+        professor_answer = answer_professor_question(
+            question,
+            profile,
+            conversation_messages,
+        )
         return attach_route(professor_answer, route)
 
     if route.intent == "advising":

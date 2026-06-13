@@ -70,6 +70,7 @@ class AskRequest(BaseModel):
     question: str
     student_id: str = "demo-student-001"
     chat_id: str | None = None
+    messages: list[dict] = []
 
 
 class IngestRequest(BaseModel):
@@ -328,6 +329,7 @@ def ask_question(request: AskRequest) -> dict[str, object]:
             question,
             student_id=request.student_id,
             attachment_context=attachment_context,
+            conversation_messages=request.messages,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=user_friendly_error(exc)) from exc

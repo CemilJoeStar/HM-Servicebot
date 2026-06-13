@@ -637,6 +637,7 @@ function App() {
           question: userQuestion,
           student_id: STUDENT_ID,
           chat_id: activeChatId,
+          messages,
         }),
       });
       const data = await response.json();

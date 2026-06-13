@@ -287,6 +287,15 @@ values
         '2026',
         1,
         now()
+    ),
+    (
+        'Kontaktweg Studierendensekretariat 2026',
+        'Kontaktweg Studierendensekretariat 2026 · verifiziert',
+        'service_notice',
+        'active',
+        '2026',
+        1,
+        now()
     )
 on conflict (source_label) do update
 set
