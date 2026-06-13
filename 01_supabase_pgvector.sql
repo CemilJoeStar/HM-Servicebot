@@ -191,6 +191,16 @@ values (
             jsonb_build_object('name', 'IT-Sicherheit', 'ects', 5, 'category', 'Pflichtmodul'),
             jsonb_build_object('name', 'Projektseminar', 'ects', 5, 'category', 'Pflichtmodul')
         ),
+        'exam_attempts', jsonb_build_array(
+            jsonb_build_object(
+                'name', 'Wirtschaftsmathematik II',
+                'attempt', 2,
+                'max_attempts', 3,
+                'status', 'Fehlversuch',
+                'ects', 5,
+                'category', 'Pflichtmodul'
+            )
+        ),
         'advising_note', 'Profil- und Studienverlaufsdaten für erste individuelle Studienberatung; keine rechtsverbindliche Auskunft.'
     )
 )

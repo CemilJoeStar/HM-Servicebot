@@ -246,6 +246,15 @@ function App() {
     ? profileNotes.open_modules
     : [];
   const interests = Array.isArray(profileNotes.interests) ? profileNotes.interests : [];
+  const examAttempts = Array.isArray(profileNotes.exam_attempts)
+    ? profileNotes.exam_attempts
+    : [];
+  const examAttemptByModule = new Map(
+    examAttempts.map((attempt) => [normalizeText(attempt.name || ""), attempt])
+  );
+  const criticalExamAttempts = examAttempts.filter(
+    (attempt) => Number(attempt.attempt || 0) >= Number(attempt.max_attempts || 3)
+  );
   const missingThesisEcts = studentProfile
     ? Math.max(120 - Number(studentProfile.ects_earned || 0), 0)
     : 0;
@@ -258,6 +267,10 @@ function App() {
         missingThesisEcts > 0 && {
           label: `${missingThesisEcts} ECTS bis zur Bachelorarbeit`,
           detail: "Voraussetzung: mindestens 120 ECTS.",
+        },
+        criticalExamAttempts[0] && {
+          label: `${criticalExamAttempts[0].name} sofort priorisieren`,
+          detail: "3. Versuch im Studienverlauf hinterlegt.",
         },
         openModules[0] && {
           label: `${openModules[0].name} priorisieren`,
@@ -304,7 +317,7 @@ function App() {
       status = "failed";
     }
 
-    return { ...module, status };
+    return { ...module, status, attempt: examAttemptByModule.get(normalizedName) };
   });
   const studyPlanBySemester = studyPlanModules.reduce((groups, module) => {
     const semester = String(module.semester);
@@ -973,6 +986,11 @@ function App() {
                       <span className="statusIcon" aria-hidden="true" />
                       <strong>{module.name}</strong>
                       <small>{module.ects} ECTS · {module.area}</small>
+                      {module.attempt && (
+                        <em className={Number(module.attempt.attempt || 0) >= 3 ? "attemptBadge critical" : "attemptBadge"}>
+                          {module.attempt.attempt}. Versuch
+                        </em>
+                      )}
                     </article>
                   ))}
                 </section>
@@ -1003,6 +1021,15 @@ function App() {
               ))}
             </div>
             <ol className="advisingList expanded">
+              {examAttempts.length > 0 && (
+                <li>
+                  <strong>Wiederholungsversuche beachten</strong>
+                  <small>
+                    {examAttempts.map((attempt) => `${attempt.name}: ${attempt.attempt}. Versuch`).join(" · ")}
+                    {criticalExamAttempts.length === 0 ? " · kein 3. Versuch hinterlegt" : " · 3. Versuch hoch priorisieren"}
+                  </small>
+                </li>
+              )}
               {advisingSteps.map((step) => (
                 <li key={step.label}>
                   <strong>{step.label}</strong>

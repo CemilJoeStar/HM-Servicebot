@@ -669,6 +669,9 @@ def route_intent(question: str) -> IntentRoute:
             "fehl",
             "offen",
             "noch schreiben",
+            "versuch",
+            "versuche",
+            "fehlversuch",
             "pflichtmodule",
             "naechst",
             "prioritaet",
@@ -785,6 +788,32 @@ def get_open_modules(profile: dict | None) -> list[dict]:
 
 def get_interests(profile: dict | None) -> list[str]:
     return get_profile_notes(profile).get("interests") or []
+
+
+def get_exam_attempts(profile: dict | None) -> list[dict]:
+    return get_profile_notes(profile).get("exam_attempts") or []
+
+
+def format_exam_attempts(attempts: list[dict]) -> str:
+    if not attempts:
+        return "keine Wiederholungsversuche hinterlegt"
+
+    return ", ".join(
+        (
+            f"{attempt.get('name')} "
+            f"({attempt.get('attempt')}. Versuch von {attempt.get('max_attempts', 3)})"
+        )
+        for attempt in attempts
+        if attempt.get("name") and attempt.get("attempt")
+    )
+
+
+def get_critical_exam_attempts(profile: dict | None) -> list[dict]:
+    return [
+        attempt
+        for attempt in get_exam_attempts(profile)
+        if int(attempt.get("attempt") or 0) >= int(attempt.get("max_attempts") or 3)
+    ]
 
 
 def get_normalized_completed_module_names(profile: dict | None) -> set[str]:
@@ -1370,7 +1399,7 @@ def recommend_focus_area(profile: dict | None) -> AdvisingRecommendation:
             f"Dieser Schwerpunkt passt am besten zu den hinterlegten Interessen "
             f"und Modulindikatoren ({evidence})."
         ),
-        priority=3,
+        priority=6,
     )
 
 
@@ -1394,6 +1423,22 @@ def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommenda
             )
         )
 
+    for attempt in get_critical_exam_attempts(profile):
+        name = attempt.get("name")
+        if not name:
+            continue
+        recommendations.append(
+            AdvisingRecommendation(
+                title=f"{name} sofort priorisieren",
+                rationale=(
+                    "Das Modul ist als 3. Versuch markiert. Es sollte vor normalen "
+                    "Modul-, Wahlfach- oder Vertiefungsentscheidungen fachlich und "
+                    "organisatorisch abgesichert werden."
+                ),
+                priority=2,
+            )
+        )
+
     missing_ects = max(THESIS_REQUIRED_ECTS - ects_earned, 0)
     if missing_ects > 0:
         recommendations.append(
@@ -1403,7 +1448,7 @@ def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommenda
                     f"Aktuell sind {ects_earned} ECTS hinterlegt; für die Anmeldung "
                     f"werden mindestens {THESIS_REQUIRED_ECTS} ECTS benötigt."
                 ),
-                priority=2,
+                priority=3,
             )
         )
 
@@ -1420,7 +1465,7 @@ def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommenda
                     "Das Modul ist im Studienverlauf noch offen und hilft, "
                     "den nächsten Studienfortschritt planbar zu machen."
                 ),
-                priority=2,
+                priority=4,
             )
         )
 
@@ -1434,7 +1479,7 @@ def build_study_recommendations(profile: dict | None) -> list[AdvisingRecommenda
                     "Der Hybrid-Recommender bewertet das Modul hoch, weil es "
                     f"{'; '.join(best_course.reasons)}."
                 ),
-                priority=3,
+                priority=5,
             )
         )
 
@@ -1451,7 +1496,43 @@ def answer_advising_question(question: str, profile: dict | None) -> dict[str, o
     open_modules = get_open_modules(profile)
     completed_modules = get_completed_modules(profile)
     interests = get_interests(profile)
+    exam_attempts = get_exam_attempts(profile)
     recommendations = build_study_recommendations(profile)
+
+    if contains_any(normalized, ["versuch", "versuche", "fehlversuch"]):
+        third_attempts = [
+            attempt
+            for attempt in exam_attempts
+            if int(attempt.get("attempt") or 0) >= int(attempt.get("max_attempts") or 3)
+        ]
+        second_attempts = [
+            attempt
+            for attempt in exam_attempts
+            if int(attempt.get("attempt") or 0) == 2
+        ]
+        parts = []
+        if second_attempts:
+            parts.append(
+                "Als 2. Versuch ist hinterlegt: "
+                f"{format_exam_attempts(second_attempts)}."
+            )
+        else:
+            parts.append("Es ist aktuell kein 2. Versuch im Profil hinterlegt.")
+
+        if third_attempts:
+            parts.append(
+                "Als 3. Versuch ist hinterlegt: "
+                f"{format_exam_attempts(third_attempts)}. "
+                "Das sollte in der Studienplanung sehr hoch priorisiert werden."
+            )
+        else:
+            parts.append("Ein 3. Versuch ist aktuell nicht im Profil hinterlegt.")
+
+        return {
+            "answer": " ".join(parts),
+            "sources": build_source_list(PROFILE_SOURCE_LABEL, "Regelbasierte Studienberatung"),
+            "intent": "advising",
+        }
 
     if (
         contains_any(normalized, ["wahlpflicht", "kurse", "kurs", "recommender", "recommendation"])

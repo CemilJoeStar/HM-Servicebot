@@ -467,6 +467,26 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.attemptBadge {
+  grid-column: 2;
+  justify-self: start;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #a16207;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.attemptBadge.critical {
+  background: var(--soft-red);
+  color: var(--hm-red-dark);
+}
+
 .statusIcon {
   display: grid;
   place-items: center;
