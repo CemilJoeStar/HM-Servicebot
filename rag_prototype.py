@@ -665,7 +665,10 @@ def route_intent(question: str) -> IntentRoute:
             "studienberatung",
             "studienplanung",
             "welche module",
+            "welche faecher",
             "fehl",
+            "offen",
+            "noch schreiben",
             "pflichtmodule",
             "naechst",
             "prioritaet",
@@ -1497,6 +1500,8 @@ def answer_advising_question(question: str, profile: dict | None) -> dict[str, o
         ("fehl" in normalized and ("modul" in normalized or "bachelorarbeit" in normalized))
         or "offene module" in normalized
         or "pflichtmodule" in normalized
+        or ("offen" in normalized and ("modul" in normalized or "faecher" in normalized or "fach" in normalized))
+        or "noch schreiben" in normalized
     ):
         if "bachelorarbeit" in normalized:
             ects_earned = profile.get("ects_earned")
