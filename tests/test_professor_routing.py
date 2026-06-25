@@ -125,5 +125,43 @@ class ProfessorRoutingTests(unittest.TestCase):
         self.assertNotIn("Prof. Dr. Selin Aydin", answer["answer"])
 
 
+class TypoToleranceTests(unittest.TestCase):
+    def test_bachelorarbeit_typo_is_normalized(self):
+        normalized = rag_prototype.normalize_question(
+            "Wann kann ich meine bachelorarebit schreiben?"
+        )
+
+        self.assertIn("bachelorarbeit", normalized)
+
+    def test_combined_ects_and_thesis_question_routes_to_advising(self):
+        route = rag_prototype.route_intent(
+            "Wie viele ECTS habe ich aktuell und wann kann ich "
+            "meine bachelorarebit schreiben?"
+        )
+
+        self.assertEqual(route.intent, "advising")
+
+    def test_combined_question_answers_current_and_missing_ects(self):
+        profile = {
+            "ects_earned": 118,
+            "notes": {
+                "open_modules": [
+                    {"name": "IT-Sicherheit"},
+                    {"name": "Projektseminar"},
+                ]
+            },
+        }
+
+        answer = rag_prototype.answer_profile_question(
+            "Wie viele ECTS habe ich aktuell und wann kann ich "
+            "meine bachelorarebit schreiben?",
+            profile,
+        )
+
+        self.assertIn("118 ECTS", answer["answer"])
+        self.assertIn("mindestens 120 ECTS", answer["answer"])
+        self.assertIn("noch 2 ECTS", answer["answer"])
+
+
 if __name__ == "__main__":
     unittest.main()

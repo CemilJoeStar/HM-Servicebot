@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import difflib
 import math
 import os
 import re
@@ -56,6 +57,19 @@ PROFESSOR_SOURCE_LABEL = "Professorenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
 HUMAN_ADVISORY_SOURCE_LABEL = "Eskalationslogik Studienberatung"
+
+DOMAIN_TERMS = {
+    "bachelorarbeit",
+    "abschlussarbeit",
+    "rueckmeldung",
+    "pruefungsabmeldung",
+    "semesterbeitrag",
+    "studierendenausweis",
+    "studierendensekretariat",
+    "studienberatung",
+    "studienverlauf",
+    "wahlpflichtmodule",
+}
 
 PROFESSOR_TOPIC_ALIASES = {
     "ki-systeme": ["ki", "kuenstliche intelligenz", "ai", "machine learning"],
@@ -539,7 +553,29 @@ def format_sources(documents: Iterable[Document]) -> list[str]:
 
 
 def normalize_question(question: str) -> str:
-    return question.lower().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+    normalized = (
+        question.lower()
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    tokens = re.split(r"(\W+)", normalized)
+    corrected_tokens = []
+    for token in tokens:
+        if not token.isalpha() or len(token) < 7 or token in DOMAIN_TERMS:
+            corrected_tokens.append(token)
+            continue
+
+        match = difflib.get_close_matches(
+            token,
+            DOMAIN_TERMS,
+            n=1,
+            cutoff=0.84,
+        )
+        corrected_tokens.append(match[0] if match else token)
+
+    return "".join(corrected_tokens)
 
 
 def contains_any(text: str, keywords: Iterable[str]) -> bool:
@@ -1971,24 +2007,6 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
             "intent": "profile",
         }
 
-    if "ects" in normalized and (
-        "wie viele" in normalized
-        or "wie viel" in normalized
-        or "derzeit" in normalized
-        or "aktuell" in normalized
-        or "habe ich" in normalized
-    ):
-        ects_earned = profile.get("ects_earned")
-        if ects_earned is None:
-            answer = "Für diese Auskunft fehlt im Profil die aktuelle ECTS-Anzahl."
-        else:
-            answer = f"Du hast laut Studierendenprofil aktuell {ects_earned} ECTS."
-        return {
-            "answer": answer,
-            "sources": build_source_list(PROFILE_SOURCE_LABEL),
-            "intent": "profile",
-        }
-
     if "rueckgemeldet" in normalized or "rueckmeldung" in normalized and "ich" in normalized:
         if profile.get("semester_fee_paid"):
             answer = "Du bist im Studierendenprofil für die Rückmeldung nicht blockiert, weil der Semesterbeitrag als bezahlt markiert ist."
@@ -2008,7 +2026,11 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
         }
 
     if "bachelorarbeit" in normalized and (
-        "kann" in normalized or "anmelden" in normalized or "darf" in normalized
+        "kann" in normalized
+        or "anmelden" in normalized
+        or "darf" in normalized
+        or "schreiben" in normalized
+        or "wann" in normalized
     ):
         ects_earned = profile.get("ects_earned")
         if ects_earned is None:
@@ -2035,6 +2057,24 @@ def answer_profile_question(question: str, profile: dict | None) -> dict[str, ob
                 PROFILE_SOURCE_LABEL,
             ),
             "intent": "advising",
+        }
+
+    if "ects" in normalized and (
+        "wie viele" in normalized
+        or "wie viel" in normalized
+        or "derzeit" in normalized
+        or "aktuell" in normalized
+        or "habe ich" in normalized
+    ):
+        ects_earned = profile.get("ects_earned")
+        if ects_earned is None:
+            answer = "Für diese Auskunft fehlt im Profil die aktuelle ECTS-Anzahl."
+        else:
+            answer = f"Du hast laut Studierendenprofil aktuell {ects_earned} ECTS."
+        return {
+            "answer": answer,
+            "sources": build_source_list(PROFILE_SOURCE_LABEL),
+            "intent": "profile",
         }
 
     if (
