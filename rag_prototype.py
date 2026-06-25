@@ -28,6 +28,7 @@ import argparse
 import ast
 import math
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -55,6 +56,50 @@ PROFESSOR_SOURCE_LABEL = "Professorenprofil"
 MIN_RETRIEVAL_SIMILARITY = float(os.getenv("MIN_RETRIEVAL_SIMILARITY", "0.62"))
 THESIS_REQUIRED_ECTS = 120
 HUMAN_ADVISORY_SOURCE_LABEL = "Eskalationslogik Studienberatung"
+
+PROFESSOR_TOPIC_ALIASES = {
+    "ki-systeme": ["ki", "kuenstliche intelligenz", "ai", "machine learning"],
+    "natural language processing": ["nlp", "sprachverarbeitung", "textanalyse"],
+    "chatbots": ["chatbot", "servicebot", "conversational ai"],
+    "software engineering": [
+        "software engineering",
+        "softwareentwicklung",
+        "software entwicklung",
+        "webentwicklung",
+        "backend",
+        "frontend",
+    ],
+    "cloud-anwendungen": [
+        "cloud",
+        "cloud computing",
+        "cloud-native",
+        "cloud native",
+        "aws",
+        "azure",
+    ],
+    "it-sicherheit": ["it-sicherheit", "it sicherheit", "informationssicherheit"],
+    "cybersecurity": ["cybersecurity", "cyber security", "cyber-sicherheit"],
+    "datenschutz": ["datenschutz", "dsgvo", "privacy"],
+    "cloud security": ["cloud security", "cloud-sicherheit", "cloud sicherheit"],
+    "data analytics": ["data analytics", "datenanalyse", "analytics"],
+    "business intelligence": ["business intelligence", "bi", "dashboarding"],
+    "process mining": ["process mining", "prozessanalyse"],
+    "digitale prozesse": ["digitale prozesse", "digitalisierung"],
+    "geschaeftsprozessmanagement": [
+        "geschaeftsprozessmanagement",
+        "prozessmanagement",
+        "gpm",
+    ],
+    "projektseminar": ["projektseminar", "projektarbeit"],
+    "erp-systeme": ["erp", "erp-systeme", "enterprise resource planning"],
+    "prozessautomatisierung": ["prozessautomatisierung", "automatisierung", "workflow"],
+    "digitale verwaltung": ["digitale verwaltung", "e-government"],
+    "marketing": ["marketing", "online marketing"],
+    "digitale geschaeftsmodelle": ["digitale geschaeftsmodelle", "business model"],
+    "e-commerce": ["e-commerce", "ecommerce", "onlinehandel"],
+    "innovation management": ["innovation management", "innovationsmanagement"],
+    "startups": ["startup", "startups", "gruendung"],
+}
 
 THESIS_TOPIC_DIRECTIONS = {
     "ki-systeme": [
@@ -524,6 +569,56 @@ def normalize_matching_text(value: str) -> str:
     return normalized
 
 
+def matching_aliases_for_topic(topic: str) -> list[str]:
+    normalized_topic = normalize_matching_text(topic)
+    aliases = [normalized_topic, *PROFESSOR_TOPIC_ALIASES.get(normalized_topic, [])]
+    return list(dict.fromkeys(normalize_matching_text(alias) for alias in aliases))
+
+
+def matching_phrase(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalize_matching_text(value)).strip()
+    return f" {normalized} "
+
+
+def match_requested_focus_topics(question: str, focus_topics: list[str]) -> list[str]:
+    """Return explicit topic matches from the question, independent of profile data."""
+    normalized_query = matching_phrase(question)
+    matches = []
+    for topic in focus_topics:
+        aliases = matching_aliases_for_topic(topic)
+        if any(matching_phrase(alias) in normalized_query for alias in aliases):
+            matches.append(topic)
+    return matches
+
+
+def contains_known_professor_topic(question: str) -> bool:
+    normalized_query = matching_phrase(question)
+    return any(
+        matching_phrase(alias) in normalized_query
+        for aliases in PROFESSOR_TOPIC_ALIASES.values()
+        for alias in aliases
+    )
+
+
+def has_recent_professor_context(messages: list[dict] | None) -> bool:
+    if not messages:
+        return False
+
+    for message in reversed(messages[-8:]):
+        if message.get("role") == "assistant":
+            route_label = normalize_text(str(message.get("routeLabel") or ""))
+            if route_label == "professorenmatching":
+                return True
+        if message.get("role") == "user":
+            text = str(message.get("text") or "")
+            if is_thesis_topic_question(text) or contains_any(
+                normalize_question(text),
+                ["professor", "professorin", "prof", "betreu", "dozent", "dozentin"],
+            ):
+                return True
+    return False
+
+
 def is_human_advisory_case(question: str) -> bool:
     """Detect questions where the bot should support, but not decide alone."""
     normalized = normalize_question(question)
@@ -585,6 +680,10 @@ def is_thesis_topic_question(question: str) -> bool:
         "person",
         "betreuungsperson",
         "passend",
+        "empfehl",
+        "vorschlag",
+        "wen ",
+        "wer ",
     ]
     return contains_any(normalized, thesis_terms) and contains_any(
         normalized,
@@ -755,6 +854,34 @@ def route_intent(question: str) -> IntentRoute:
         data_sources=[],
         reason="Die Frage passt zu keiner verifizierten Route des Prototyps.",
     )
+
+
+def route_intent_with_context(
+    question: str,
+    conversation_messages: list[dict] | None,
+) -> IntentRoute:
+    route = route_intent(question)
+    if (
+        route.intent in {"fallback", "advising"}
+        and has_recent_professor_context(conversation_messages)
+        and (
+            contains_known_professor_topic(question)
+            or contains_any(
+                normalize_question(question),
+                ["meinte", "thema", "bereich", "richtung", "betreu", "prof"],
+            )
+        )
+    ):
+        return IntentRoute(
+            intent="professor_matching",
+            label="Professorenmatching",
+            data_sources=["Studierendenprofil", "Professorendatenbank"],
+            reason=(
+                "Die Frage konkretisiert den Themenwunsch aus dem vorherigen "
+                "Professorenmatching."
+            ),
+        )
+    return route
 
 
 def attach_route(payload: dict[str, object], route: IntentRoute) -> dict[str, object]:
@@ -1161,6 +1288,7 @@ def score_professor_for_profile(
     professor: dict,
     profile: dict | None,
     query: str = "",
+    require_query_match: bool = False,
 ) -> ProfessorRecommendation | None:
     if not profile:
         return None
@@ -1171,7 +1299,6 @@ def score_professor_for_profile(
         normalize_matching_text(topic): topic
         for topic in focus_topics
     }
-    normalized_query = normalize_matching_text(query)
     interests = get_interests(profile)
     interest_signals = {normalize_matching_text(interest) for interest in interests}
     interests_by_signal = {
@@ -1192,13 +1319,13 @@ def score_professor_for_profile(
     score = 0
     reasons = []
 
-    query_matches = [
-        topic
-        for topic in focus_topics
-        if normalize_matching_text(topic) in normalized_query
-    ]
+    query_matches = match_requested_focus_topics(query, focus_topics)
+    if require_query_match and not query_matches:
+        return None
+
     if query_matches:
-        score += 10 * len(query_matches)
+        # An explicitly requested subject must dominate generic profile similarity.
+        score += 30 + 10 * (len(query_matches) - 1)
         reasons.append(f"passt zum angefragten Thema {', '.join(query_matches)}")
 
     interest_matches = sorted(normalized_focus_topics & interest_signals)
@@ -1253,10 +1380,22 @@ def recommend_professors(
     query: str = "",
     limit: int = 3,
 ) -> list[ProfessorRecommendation]:
+    professors = get_professors()
+    has_explicit_topic = any(
+        match_requested_focus_topics(query, professor.get("focus_topics") or [])
+        for professor in professors
+    )
     recommendations = [
         recommendation
-        for professor in get_professors()
-        if (recommendation := score_professor_for_profile(professor, profile, query=query))
+        for professor in professors
+        if (
+            recommendation := score_professor_for_profile(
+                professor,
+                profile,
+                query=query,
+                require_query_match=has_explicit_topic,
+            )
+        )
     ]
     recommendations.sort(
         key=lambda item: (
@@ -1284,6 +1423,7 @@ def format_professor_recommendations(recommendations: list[ProfessorRecommendati
         slot_label = "freier Slot" if recommendation.available_slots == 1 else "freie Slots"
         topics = ", ".join(recommendation.focus_topics[:3])
         reasons = "; ".join(recommendation.reasons)
+        reasons = reasons[:1].upper() + reasons[1:] if reasons else ""
         lines.append(
             f"{index}. {recommendation.display_name} ({status}, "
             f"{recommendation.available_slots} {slot_label}): Fokus {topics}. {reasons}."
@@ -1324,11 +1464,28 @@ def answer_professor_question(
             "intent": "professor_matching",
         }
 
+    has_explicit_topic = any(
+        any(reason.startswith("passt zum angefragten Thema") for reason in item.reasons)
+        for item in recommendations
+    )
+    introduction = (
+        "Zum von dir genannten Themenbereich passen aktuell diese Betreuungspersonen:"
+        if has_explicit_topic
+        else "Für dein Profil würde ich diese Betreuungspersonen zuerst prüfen:"
+    )
+    explanation = (
+        "Der Themenwunsch ist das primäre Auswahlkriterium; Interessen, Studienverlauf "
+        "und Verfügbarkeit ergänzen das Ranking."
+        if has_explicit_topic
+        else (
+            "Die Empfehlung ist ein Matching aus Interessen, Studienverlauf, "
+            "Themenfokus und aktueller Verfügbarkeit."
+        )
+    )
     answer = (
-        "Für dein Profil würde ich diese Betreuungspersonen zuerst prüfen:\n"
+        f"{introduction}\n"
         f"{format_professor_recommendations(recommendations)}\n"
-        "Die Empfehlung ist ein Matching aus Interessen, Studienverlauf, Themenfokus "
-        "und aktueller Verfügbarkeit."
+        f"{explanation}"
     )
     return {
         "answer": answer,
@@ -2079,7 +2236,7 @@ def ask_with_sources(
     attachment_context: str = "",
     conversation_messages: list[dict] | None = None,
 ) -> dict[str, object]:
-    route = route_intent(question)
+    route = route_intent_with_context(question, conversation_messages)
     has_attachment_context = bool(attachment_context.strip())
     if route.intent == "fallback" and not has_attachment_context:
         return attach_route(
