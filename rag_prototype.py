@@ -1284,6 +1284,60 @@ def recommendation_to_professor(
     return None
 
 
+def answer_mentioned_professor_question(
+    question: str,
+    profile: dict | None,
+    professors: list[dict] | None = None,
+) -> dict[str, object] | None:
+    professors = professors if professors is not None else get_professors()
+    professor = find_mentioned_professor(question, professors)
+    if not professor:
+        return None
+
+    focus_topics = professor.get("focus_topics") or []
+    topic_text = ", ".join(focus_topics) if focus_topics else "keine Schwerpunkte hinterlegt"
+    capacity_status = professor.get("capacity_status") or "unavailable"
+    capacity_label = get_capacity_status_label(capacity_status)
+    available_slots = int(professor.get("available_slots") or 0)
+    slot_label = "freier Slot" if available_slots == 1 else "freie Slots"
+    email = professor.get("email")
+
+    recommendation = score_professor_for_profile(professor, profile, query=question)
+    profile_reasons = []
+    if recommendation:
+        profile_reasons = [
+            reason
+            for reason in recommendation.reasons
+            if not reason.startswith(("hat aktuell", "hat nur", "ist aktuell"))
+        ]
+
+    if profile_reasons:
+        profile_assessment = (
+            "Bezug zu deinem Profil: "
+            f"{'; '.join(profile_reasons)}."
+        )
+    else:
+        profile_assessment = (
+            "Aus den aktuell hinterlegten Interessen und Modulen ergibt sich kein "
+            "direkter Profiltreffer. Fachlich kann die Person trotzdem passen, wenn "
+            "dein geplantes Thema einen der genannten Schwerpunkte behandelt."
+        )
+
+    contact_hint = f" Kontakt: {email}." if email else ""
+    answer = (
+        f"{professor.get('display_name')} arbeitet laut Professorenprofil zu "
+        f"{topic_text}. Die Betreuung ist {capacity_label}; aktuell sind "
+        f"{available_slots} {slot_label} hinterlegt.{contact_hint}\n"
+        f"{profile_assessment}"
+    )
+    return {
+        "answer": answer,
+        "sources": build_source_list(PROFESSOR_SOURCE_LABEL, PROFILE_SOURCE_LABEL),
+        "intent": "professor_matching",
+        "confidence": 1,
+    }
+
+
 def score_professor_for_profile(
     professor: dict,
     profile: dict | None,
@@ -1452,6 +1506,13 @@ def answer_professor_question(
         )
         if topic_answer:
             return topic_answer
+
+    mentioned_professor_answer = answer_mentioned_professor_question(
+        question,
+        profile,
+    )
+    if mentioned_professor_answer:
+        return mentioned_professor_answer
 
     recommendations = recommend_professors(profile, query=question)
     if not recommendations:

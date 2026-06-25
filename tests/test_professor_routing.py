@@ -27,6 +27,13 @@ PROFESSORS = [
         "capacity_status": "available",
         "available_slots": 3,
     },
+    {
+        "display_name": "Prof. Dr. David Nguyen",
+        "focus_topics": ["Cybersecurity", "Datenschutz", "Cloud Security"],
+        "capacity_status": "limited",
+        "available_slots": 1,
+        "email": "david.nguyen@hm.example",
+    },
 ]
 
 PROFILE = {
@@ -101,6 +108,21 @@ class ProfessorRoutingTests(unittest.TestCase):
             [item.display_name for item in recommendations],
             ["Prof. Dr. Markus Brandt"],
         )
+
+    @patch("rag_prototype.get_professors", return_value=PROFESSORS)
+    def test_named_professor_returns_details_instead_of_generic_ranking(
+        self,
+        _get_professors,
+    ):
+        answer = rag_prototype.answer_professor_question(
+            "Was ist mit Prof. Nguyen?",
+            PROFILE,
+        )
+
+        self.assertIn("Prof. Dr. David Nguyen", answer["answer"])
+        self.assertIn("Cybersecurity", answer["answer"])
+        self.assertIn("begrenzt verfügbar", answer["answer"])
+        self.assertNotIn("Prof. Dr. Selin Aydin", answer["answer"])
 
 
 if __name__ == "__main__":
